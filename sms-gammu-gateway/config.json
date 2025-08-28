@@ -44,7 +44,7 @@
   "ingress": true,
   "ingress_port": 5000,
   "host_network": false,
-  "devices": ["/dev/ttyUSB0:/dev/ttyUSB0:rwm", "/dev/ttyUSB1:/dev/ttyUSB1:rwm", "/dev/ttyACM0:/dev/ttyACM0:rwm"],
+  "uart": true,
   "privileged": ["SYS_RAWIO"],
   "udev": true,
   "init": false,
