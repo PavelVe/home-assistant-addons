@@ -1,24 +1,30 @@
 {
   "name": "Teltonika Server",
-  "version": "0.2.8",
+  "version": "1.8.4",
   "slug": "teltonika_server",
-  "description": "Server for receiving data from Teltonika GPS devices using AVL protocol and logging to file with web interface",
+  "description": "Professional GPS tracking server with Teltonika AVL protocol, IMEI security, CSV logging per device, TCP buffer management, and comprehensive web interface with device tabs",
   "startup": "services",
   "arch": ["amd64", "i386", "aarch64", "armv7", "armhf"],
   "boot": "auto",
+  "icon": "icon.png",
   "panel_icon": "mdi:server-network-outline",
   "url": "https://github.com/PavelVe/home-assistant-addons/blob/main/TeltonikaServer/README.md",
   "homeassistant": "2022.1.1",
   "options": {
     "tcp_port": 3030,
-    "web_port": 3031
+    "web_port": 3031,
+    "allowed_imeis": [],
+    "log_to_config": true
   },
   "schema": {
     "tcp_port": "int",
-    "web_port": "int"
+    "web_port": "int",
+    "allowed_imeis": ["str"],
+    "log_to_config": "bool"
   },
   "ingress": true,
   "ingress_port": 3031,
   "host_network": true,
-  "init": false
+  "init": false,
+  "map": ["share:rw"]
 }
