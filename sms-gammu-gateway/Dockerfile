@@ -32,6 +32,7 @@ RUN pip3 install --break-system-packages --no-cache-dir -r requirements.txt
 COPY run.py .
 COPY support.py .
 COPY mqtt_publisher.py .
+COPY config.json .
 COPY run.sh .
 COPY icon.png .
 COPY services.yaml .

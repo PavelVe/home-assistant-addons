@@ -10,6 +10,8 @@ Licensed under Apache License 2.0
 import os
 import json
 import logging
+import signal
+import sys
 from flask import Flask, request
 from flask_httpauth import HTTPBasicAuth
 from flask_restx import Api, Resource, fields, reqparse
@@ -18,14 +20,53 @@ from support import init_state_machine, retrieveAllSms, deleteSms, encodeSms
 from mqtt_publisher import MQTTPublisher
 from gammu import GSMNetworks
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(message)s')
+# Configure logging with timestamp
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(asctime)s] %(levelname)s: %(message)s',
+    datefmt='%H:%M:%S'
+)
 mqtt_logger = logging.getLogger('mqtt_publisher')
 mqtt_logger.setLevel(logging.INFO)
 
 # Suppress Flask development server warning
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
+
+def load_version():
+    """Load version from config.json"""
+    try:
+        # Try multiple possible locations
+        possible_paths = [
+            '/data/options.json',
+            os.path.join(os.path.dirname(__file__), 'config.json'),
+            '/config.json',
+        ]
+
+        # Try to read from addon info API first (most reliable in HA)
+        try:
+            import requests
+            response = requests.get('http://supervisor/addons/self/info',
+                                   headers={'Authorization': f'Bearer {os.environ.get("SUPERVISOR_TOKEN", "")}'},
+                                   timeout=1)
+            if response.status_code == 200:
+                return response.json().get('data', {}).get('version', 'unknown')
+        except:
+            pass
+
+        # Fallback: try to find config.json
+        for config_path in possible_paths:
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config_json = json.load(f)
+                    version = config_json.get('version')
+                    if version:
+                        return version
+
+        return "unknown"
+    except Exception as e:
+        logging.warning(f"Could not read version: {e}")
+        return "unknown"
 
 def load_ha_config():
     """Load Home Assistant add-on configuration"""
@@ -55,7 +96,8 @@ def load_ha_config():
             'auto_delete_read_sms': False
         }
 
-# Load configuration
+# Load version and configuration
+VERSION = load_version()
 config = load_ha_config()
 pin = config.get('pin') if config.get('pin') else None
 ssl = config.get('ssl', False)
@@ -64,13 +106,47 @@ username = config.get('username', 'admin')
 password = config.get('password', 'password')
 device_path = config.get('device_path', '/dev/ttyUSB0')
 
-# Initialize gammu state machine
+# Initialize MQTT publisher FIRST (before gammu)
+mqtt_publisher = MQTTPublisher(config)
+
+# Publish OFFLINE status immediately on startup (clears any stale "online" state)
+if mqtt_publisher.connected:
+    mqtt_publisher.device_tracker.initial_check_done = False  # Force offline
+    mqtt_publisher.publish_device_status()
+    logging.info("📡 Published initial OFFLINE status on startup")
+
+# Now initialize gammu state machine (this may fail if modem not connected)
 machine = init_state_machine(pin, device_path)
 
-# Initialize MQTT publisher
-mqtt_publisher = MQTTPublisher(config)
 # Set gammu machine for MQTT SMS sending
 mqtt_publisher.set_gammu_machine(machine)
+
+# Setup signal handlers for graceful shutdown
+def signal_handler(signum, frame):
+    """Handle shutdown signals (SIGTERM, SIGINT)"""
+    logging.info(f"🛑 Received shutdown signal {signum}, publishing offline status...")
+    try:
+        mqtt_publisher.disconnect()
+        logging.info("✅ MQTT disconnected successfully")
+    except Exception as e:
+        logging.error(f"❌ Error during MQTT disconnect: {e}")
+    finally:
+        sys.exit(0)
+
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
+
+# Register atexit handler as backup
+import atexit
+def cleanup():
+    """Cleanup function called on normal exit"""
+    logging.info("🧹 Cleanup: Publishing offline status...")
+    try:
+        mqtt_publisher.disconnect()
+    except Exception as e:
+        logging.error(f"Error during cleanup: {e}")
+
+atexit.register(cleanup)
 
 app = Flask(__name__)
 
@@ -147,7 +223,7 @@ def home():
             
             <div class="status">
                 <strong>✅ Gateway is running properly</strong><br>
-                Version: 1.4.3
+                Version: {VERSION}
             </div>
             
             <a href="http://''' + request.host.split(':')[0] + ''':5000/docs/" 
@@ -171,13 +247,13 @@ def home():
     </body>
     </html>
     '''
-    return Response(html, mimetype='text/html')
+    return Response(html.replace('{VERSION}', VERSION), mimetype='text/html')
 
 # Swagger UI Configuration
 # Put Swagger UI on /docs/ path for direct access via port 5000
 api = Api(
     app,
-    version='1.4.3',
+    version=VERSION,
     title='SMS Gammu Gateway API',
     description='REST API for sending and receiving SMS messages via USB GSM modems (SIM800L, Huawei, etc.). Modern replacement for deprecated SMS notifications via GSM-modem integration.',
     doc='/docs/',  # Swagger UI on /docs/ path
@@ -481,7 +557,7 @@ class Reset(Resource):
         return {"status": 200, "message": "Reset done"}, 200
 
 if __name__ == '__main__':
-    print(f"🚀 SMS Gammu Gateway v1.4.3 started successfully!")
+    print(f"🚀 SMS Gammu Gateway v{VERSION} started successfully!")
     print(f"📱 Device: {device_path}")
     print(f"🌐 API available on port {port}")
     print(f"🏠 Web UI: http://localhost:{port}/")

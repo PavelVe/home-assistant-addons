@@ -14,18 +14,18 @@ import gammu
 def init_state_machine(pin, device_path='/dev/ttyUSB0'):
     """Initialize gammu state machine with HA add-on config"""
     sm = gammu.StateMachine()
-    
+
     # Create gammu config dynamically
     config_content = f"""[gammu]
 device = {device_path}
 connection = at
 """
-    
+
     # Write config to temporary file
     config_file = '/tmp/gammu.config'
     with open(config_file, 'w') as f:
         f.write(config_content)
-    
+
     sm.ReadConfig(Filename=config_file)
     
     try:
@@ -109,10 +109,10 @@ def retrieveAllSms(machine):
             results.append(result)
 
         return results
-    
+
     except Exception as e:
         print(f"Error retrieving SMS: {e}")
-        return []
+        raise  # Re-raise exception so track_gammu_operation can detect failure
 
 
 def deleteSms(machine, sms):

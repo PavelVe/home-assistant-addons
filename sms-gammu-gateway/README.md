@@ -26,6 +26,7 @@ This add-on provides a complete SMS gateway solution for Home Assistant, replaci
 - **Delete All SMS Button** - Clear SIM card storage with one click
 - **Auto-delete SMS** - Optional automatic deletion after reading
 - **Reset Counter Button** - Reset SMS statistics
+- **Message Length Limit** - 255 characters max (longer messages split automatically by modem)
 
 ### 📊 Device Monitoring
 - **Signal Strength** sensor with percentage display
@@ -71,12 +72,33 @@ This add-on provides a complete SMS gateway solution for Home Assistant, replaci
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `device_path` | `/dev/ttyUSB0` | Path to your GSM modem device |
+| `device_path` | `/dev/ttyUSB0` | Path to your GSM modem device (see Device Path Options below) |
 | `pin` | `""` | SIM card PIN (leave empty if no PIN) |
 | `port` | `5000` | API port |
 | `ssl` | `false` | Enable HTTPS |
 | `username` | `admin` | API username |
 | `password` | `password` | API password (change this!) |
+
+#### Device Path Options
+
+You can specify the modem path in two ways:
+
+**Option 1: By device name (simple, but may change)**
+```
+/dev/ttyUSB0
+```
+⚠️ **Warning:** This path can change if you disconnect/reconnect the modem or add other USB devices.
+
+**Option 2: By device ID (recommended, stable)**
+```
+/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
+```
+✅ **Recommended:** This path is unique and persistent across reboots and reconnections.
+
+To find your modem's stable ID, run in Home Assistant terminal:
+```bash
+ls -la /dev/serial/by-id/
+```
 
 ### MQTT Settings (Optional)
 
@@ -96,12 +118,16 @@ This add-on provides a complete SMS gateway solution for Home Assistant, replaci
 | Option | Default | Description |
 |--------|---------|-------------|
 | `sms_cost_per_message` | `0.0` | Cost per SMS (set to 0 to disable cost tracking sensor) |
-| `auto_delete_read_sms` | `false` | Automatically delete SMS after reading |
+| `auto_delete_read_sms` | `true` | Automatically delete SMS after reading |
 
 ### Example Configuration
 
 ```yaml
-device_path: "/dev/ttyUSB0"
+# Recommended: Use stable device ID
+device_path: "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0"
+# Or simple path (may change on reconnect):
+# device_path: "/dev/ttyUSB0"
+
 pin: ""
 port: 5000
 ssl: false
@@ -168,9 +194,11 @@ data:
 ### Send SMS via Button
 1. Go to **SMS Gateway** device in Home Assistant
 2. Fill **Phone Number** field (e.g., +420123456789)
-3. Fill **Message Text** field
+3. Fill **Message Text** field (max 255 characters)
 4. Click **Send SMS** button
 5. Message field auto-clears, number stays for next message
+
+**Note:** Messages are limited to 255 characters due to MQTT message size constraints. Longer messages will be automatically split into multiple SMS parts by the GSM modem.
 
 ### Automation Example
 
@@ -220,6 +248,10 @@ Access full API documentation at: `http://your-ha-ip:5000/docs/`
 
 ### Device Not Found
 - Check USB connection: `ls /dev/ttyUSB*`
+- **Recommended:** Use stable device ID instead of `/dev/ttyUSB0`:
+  ```bash
+  ls -la /dev/serial/by-id/
+  ```
 - Verify device permissions
 - Try different USB ports
 - Check `dmesg | grep tty` for device detection

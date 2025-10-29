@@ -91,12 +91,7 @@ class DeviceConnectivityTracker:
     def record_success(self):
         """Record successful gammu operation"""
         self.last_success_time = time.time()
-
-        # Only reset consecutive failures if we had them logged
-        if self.consecutive_failures > 0:
-            logger.info(f"✅ Device recovery: resetting consecutive_failures from {self.consecutive_failures} to 0")
-            self.consecutive_failures = 0
-
+        self.consecutive_failures = 0
         self.last_error = None
         self.total_operations += 1
         self.successful_operations += 1
@@ -117,17 +112,11 @@ class DeviceConnectivityTracker:
         if self.last_success_time is None:
             return "offline"
 
-        # If we have 2 or more consecutive failures, go offline immediately
-        if self.consecutive_failures >= 2:
-            return "offline"
-
-        # Check time-based timeout (10 minutes without any communication)
         time_since_last_success = time.time() - self.last_success_time
         if time_since_last_success > self.offline_timeout:
             return "offline"
-
-        # Recent success and < 3 failures = online
-        return "online"
+        else:
+            return "online"
             
     def get_status_data(self):
         """Get detailed status information"""
@@ -155,9 +144,7 @@ class MQTTPublisher:
         self.config = config
         self.client: Optional[mqtt.Client] = None
         self.connected = False
-        self.disconnecting = False  # Flag to prevent multiple disconnect calls
         self.topic_prefix = config.get('mqtt_topic_prefix', 'homeassistant/sensor/sms_gateway')
-        self.availability_topic = f"{self.topic_prefix}/availability"  # Shared availability for all entities
         self.gammu_machine = None  # Will be set externally
         self.current_phone_number = ""  # Current phone number from text input
         self.current_message_text = ""  # Current message text from text input
@@ -175,42 +162,27 @@ class MQTTPublisher:
     def _setup_client(self):
         """Setup MQTT client with configuration"""
         try:
-            # Create client with unique ID for better connection tracking
-            import socket
-            client_id = f"sms_gateway_{socket.gethostname()}"
-            self.client = mqtt.Client(client_id=client_id, clean_session=True)
+            self.client = mqtt.Client()
 
             # Set credentials ONLY if username is provided and not empty
-            username = self.config.get('mqtt_username', '')
+            username = self.config.get('mqtt_username', '').strip()
             password = self.config.get('mqtt_password', '')
-
-            # Ensure username is a string and strip whitespace
-            if username is None:
-                username = ''
-            username = str(username).strip()
-
-            # Only set credentials if username has actual content
-            if username and username != '':
+            if username:  # Only set credentials if username is not empty
                 self.client.username_pw_set(username, password)
-                logger.info(f"MQTT: Client ID: {client_id}, Using authentication with username: '{username}'")
+                logger.info(f"MQTT: Using authentication with username: {username}")
             else:
-                logger.info(f"MQTT: Client ID: {client_id}, Connecting without authentication (local broker mode)")
+                logger.info("MQTT: Connecting without authentication (local broker)")
             
             # Set callbacks
             self.client.on_connect = self._on_connect
             self.client.on_disconnect = self._on_disconnect
             self.client.on_publish = self._on_publish
             self.client.on_message = self._on_message
-
-            # Set Last Will and Testament - published if connection lost unexpectedly
-            # This makes ALL entities unavailable in HA when addon crashes/stops
-            self.client.will_set(self.availability_topic, "offline", qos=1, retain=True)
-            logger.info("📡 MQTT Last Will set: all entities will be unavailable if connection lost")
-
+            
             # Connect to broker
             host = self.config.get('mqtt_host', 'core-mosquitto')
             port = self.config.get('mqtt_port', 1883)
-
+            
             logger.info(f"Connecting to MQTT broker: {host}:{port}")
             self.client.connect(host, port, 60)
             self.client.loop_start()
@@ -223,11 +195,6 @@ class MQTTPublisher:
         if rc == 0:
             self.connected = True
             logger.info("Connected to MQTT broker")
-
-            # Publish "online" availability immediately - makes all entities available
-            self.client.publish(self.availability_topic, "online", qos=1, retain=True)
-            logger.info("📡 Published availability: online")
-
             self._publish_discovery_configs()
             # Subscribe to SMS send command topic
             send_topic = f"{self.topic_prefix}/send"
@@ -320,20 +287,7 @@ class MQTTPublisher:
                 logger.info(f"Message text synced from HA state: {payload}")
 
         except Exception as e:
-            logger.error(f"Error processing MQTT message on topic {msg.topic}: {e}")
-            # Publish error feedback to user via send_status topic
-            if self.connected:
-                try:
-                    status_topic = f"{self.topic_prefix}/send_status"
-                    status_data = {
-                        "status": "error",
-                        "message": f"Command processing failed: {str(e)}",
-                        "topic": msg.topic,
-                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-                    }
-                    self.client.publish(status_topic, json.dumps(status_data), retain=False)
-                except Exception as pub_err:
-                    logger.error(f"Failed to publish error status: {pub_err}")
+            logger.error(f"Error processing MQTT message: {e}")
     
     def _handle_sms_send_command(self, payload):
         """Handle SMS send command from MQTT"""
@@ -488,75 +442,21 @@ class MQTTPublisher:
         logger.info("✅ SMS counter reset to 0")
 
     def _handle_delete_all_sms(self):
-        """Handle delete all SMS button press - with fallback for corrupted SMS"""
+        """Handle delete all SMS button press"""
         logger.info("🗑️ Delete all SMS button pressed")
         try:
             if hasattr(self, 'gammu_machine') and self.gammu_machine:
                 from support import retrieveAllSms, deleteSms
 
-                deleted_count = 0
+                # Get all SMS
+                all_sms = self.track_gammu_operation("retrieveAllSms", retrieveAllSms, self.gammu_machine)
+                count = len(all_sms)
 
-                # Try method 1: Retrieve and delete SMS one by one
-                try:
-                    all_sms = self.track_gammu_operation("retrieveAllSms", retrieveAllSms, self.gammu_machine)
-                    count = len(all_sms)
+                # Delete each SMS
+                for sms in all_sms:
+                    self.track_gammu_operation("deleteSms", deleteSms, self.gammu_machine, sms)
 
-                    logger.info(f"📋 Found {count} SMS to delete")
-
-                    # Delete each SMS
-                    for sms in all_sms:
-                        try:
-                            self.track_gammu_operation("deleteSms", deleteSms, self.gammu_machine, sms)
-                            deleted_count += 1
-                        except Exception as e:
-                            logger.warning(f"Could not delete SMS at location {sms.get('Location', 'unknown')}: {e}")
-
-                    logger.info(f"✅ Method 1: Deleted {deleted_count}/{count} SMS messages")
-
-                except Exception as e:
-                    # Method 1 failed (likely corrupted SMS) - try method 2
-                    logger.warning(f"⚠️ Method 1 failed (corrupted SMS?): {e}")
-                    logger.info("🔄 Trying Method 2: Delete by location numbers...")
-
-                    # Method 2: Get SMS capacity and delete by location
-                    try:
-                        capacity = self.track_gammu_operation("GetSMSStatus", self.gammu_machine.GetSMSStatus)
-                        sim_size = capacity.get('SIMSize', 50)  # Default 50 if unknown
-
-                        logger.info(f"📋 Attempting to delete SMS from {sim_size} locations")
-
-                        # Try to delete each location (even corrupted ones)
-                        # Use multiple folder IDs to catch SMS in different folders
-                        for location in range(1, sim_size + 1):
-                            deleted_this_location = False
-
-                            # Try different folder IDs (0=Inbox, 1=Outbox, 2=Sent, etc.)
-                            for folder in [0, 1, 2]:
-                                try:
-                                    self.gammu_machine.DeleteSMS(folder, location)
-                                    deleted_count += 1
-                                    deleted_this_location = True
-                                    logger.info(f"✅ Deleted SMS at folder={folder}, location={location}")
-                                    break  # Success - don't try other folders for this location
-                                except Exception as loc_err:
-                                    error_msg = str(loc_err)
-                                    # Only log if it's not just "empty location"
-                                    if "Empty" not in error_msg and "InvalidLocation" not in error_msg:
-                                        logger.debug(f"Folder {folder}, Location {location}: {error_msg}")
-
-                            if not deleted_this_location:
-                                logger.debug(f"Location {location}: no SMS found in any folder")
-
-                        logger.info(f"✅ Method 2: Processed {sim_size} locations, deleted {deleted_count} SMS")
-
-                    except Exception as capacity_err:
-                        logger.error(f"Method 2 also failed: {capacity_err}")
-                        raise Exception(f"Both deletion methods failed. Last error: {capacity_err}")
-
-                # Give modem time to process bulk deletion (prevents Code 27 errors)
-                if deleted_count > 0:
-                    logger.info("⏳ Waiting for modem to stabilize after bulk deletion...")
-                    time.sleep(3)  # 3 second pause
+                logger.info(f"✅ Deleted {count} SMS messages from SIM")
 
                 # Update SMS capacity after deletion
                 try:
@@ -566,13 +466,12 @@ class MQTTPublisher:
                 except Exception as e:
                     logger.warning(f"Could not update SMS capacity: {e}")
 
-                # Publish success status to MQTT
+                # Publish status to MQTT
                 if self.connected:
                     status_topic = f"{self.topic_prefix}/delete_sms_status"
                     status_data = {
                         "status": "success",
-                        "deleted_count": deleted_count,
-                        "message": f"Deleted {deleted_count} SMS messages from SIM",
+                        "deleted_count": count,
                         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
                     }
                     self.client.publish(status_topic, json.dumps(status_data), retain=False)
@@ -590,59 +489,52 @@ class MQTTPublisher:
                 self.client.publish(status_topic, json.dumps(status_data), retain=False)
 
     def _clear_text_fields(self):
-        """Clear both phone and message fields after sending SMS"""
-        # Clear both fields
-        self.current_phone_number = ""
+        """Clear only message field after sending, keep phone number for convenience"""
+        # Clear only message text, keep phone number
         self.current_message_text = ""
 
-        # Try to clear both fields in UI if connected
+        # Try to clear only message in UI if connected
         if self.connected and self.client:
             try:
-                phone_state_topic = f"{self.topic_prefix}/phone_number/state"
                 message_state_topic = f"{self.topic_prefix}/message_text/state"
-
-                # Clear both fields with retain=True
-                self.client.publish(phone_state_topic, "", retain=True, qos=1)
-                self.client.publish(message_state_topic, "", retain=True, qos=1)
-
-                logger.info("🧹 Cleared both phone and message text fields after sending SMS")
+                # Clear only message field with retain=True
+                self.client.publish(message_state_topic, "", retain=True)
+                logger.info("🧹 Cleared message text field (keeping phone number for convenience)")
             except Exception as e:
-                logger.warning(f"Could not clear text fields in UI: {e}")
+                logger.warning(f"Could not clear message field in UI: {e}")
         else:
-            logger.info("🧹 Cleared both text fields (internal state only)")
+            logger.info("🧹 Cleared message text field (internal state only)")
     
     def _publish_phone_state(self, value):
         """Publish phone number state"""
         if self.connected:
             state_topic = f"{self.topic_prefix}/phone_number/state"
-            self.client.publish(state_topic, value, retain=True, qos=1)
-
+            self.client.publish(state_topic, value, retain=False)
+    
     def _publish_message_state(self, value):
         """Publish message text state"""
         if self.connected:
             state_topic = f"{self.topic_prefix}/message_text/state"
-            self.client.publish(state_topic, value, retain=True, qos=1)
+            self.client.publish(state_topic, value, retain=False)
+    
+    def _publish_empty_text_fields(self):
+        """Initialize message field to empty on startup, let phone number persist"""
+        if self.connected:
+            message_state_topic = f"{self.topic_prefix}/message_text/state"
+            
+            # Force only message to empty state with retain=True
+            self.client.publish(message_state_topic, "", retain=True)
+            
+            # Clear only message internally, phone number will sync from HA
+            self.current_message_text = ""
+            
+            logger.info("🔄 Initialized message field to empty (phone number persists from last session)")
     
     def _publish_discovery_configs(self):
         """Publish Home Assistant auto-discovery configurations"""
         if not self.connected:
             return
-
-        # Common device config for all entities
-        DEVICE_CONFIG = {
-            "identifiers": ["sms_gateway"],
-            "name": "SMS Gateway",
-            "model": "GSM Modem",
-            "manufacturer": "Gammu Gateway"
-        }
-
-        # Common availability config - all entities share same availability topic
-        AVAILABILITY_CONFIG = {
-            "availability_topic": self.availability_topic,
-            "payload_available": "online",
-            "payload_not_available": "offline"
-        }
-
+            
         # Signal strength sensor
         signal_config = {
             "name": "GSM Signal Strength",
@@ -651,8 +543,12 @@ class MQTTPublisher:
             "value_template": "{{ value_json.SignalPercent }}",
             "unit_of_measurement": "%",
             "icon": "mdi:signal-cellular-3",
-            "device": DEVICE_CONFIG,
-            **AVAILABILITY_CONFIG
+            "device": {
+                "identifiers": ["sms_gateway"],
+                "name": "SMS Gateway",
+                "model": "GSM Modem",
+                "manufacturer": "Gammu Gateway"
+            }
         }
         
         # Network info sensor
@@ -662,10 +558,14 @@ class MQTTPublisher:
             "state_topic": f"{self.topic_prefix}/network/state",
             "value_template": "{{ value_json.NetworkName }}",
             "icon": "mdi:network",
-            "device": DEVICE_CONFIG,
-            **AVAILABILITY_CONFIG
+            "device": {
+                "identifiers": ["sms_gateway"],
+                "name": "SMS Gateway",
+                "model": "GSM Modem", 
+                "manufacturer": "Gammu Gateway"
+            }
         }
-
+        
         # Last SMS sensor
         sms_config = {
             "name": "Last SMS Received",
@@ -674,10 +574,14 @@ class MQTTPublisher:
             "value_template": "{{ value_json.Text }}",
             "json_attributes_topic": f"{self.topic_prefix}/sms/state",
             "icon": "mdi:message-text",
-            "device": DEVICE_CONFIG,
-            **AVAILABILITY_CONFIG
+            "device": {
+                "identifiers": ["sms_gateway"],
+                "name": "SMS Gateway",
+                "model": "GSM Modem",
+                "manufacturer": "Gammu Gateway"
+            }
         }
-
+        
         # SMS send status sensor
         send_status_config = {
             "name": "SMS Send Status",
@@ -686,22 +590,14 @@ class MQTTPublisher:
             "value_template": "{{ value_json.status }}",
             "json_attributes_topic": f"{self.topic_prefix}/send_status",
             "icon": "mdi:send",
-            "device": DEVICE_CONFIG,
-            **AVAILABILITY_CONFIG
+            "device": {
+                "identifiers": ["sms_gateway"],
+                "name": "SMS Gateway",
+                "model": "GSM Modem",
+                "manufacturer": "Gammu Gateway"
+            }
         }
-
-        # SMS delete status sensor
-        delete_status_config = {
-            "name": "SMS Delete Status",
-            "unique_id": "sms_gateway_delete_status",
-            "state_topic": f"{self.topic_prefix}/delete_sms_status",
-            "value_template": "{{ value_json.status }}",
-            "json_attributes_topic": f"{self.topic_prefix}/delete_sms_status",
-            "icon": "mdi:delete-sweep",
-            "device": DEVICE_CONFIG,
-            **AVAILABILITY_CONFIG
-        }
-
+        
         # SMS send button
         button_config = {
             "name": "Send SMS",
@@ -709,10 +605,14 @@ class MQTTPublisher:
             "command_topic": f"{self.topic_prefix}/send_button",
             "payload_press": "PRESS",
             "icon": "mdi:message-plus",
-            "device": DEVICE_CONFIG,
-            **AVAILABILITY_CONFIG
+            "device": {
+                "identifiers": ["sms_gateway"],
+                "name": "SMS Gateway",
+                "model": "GSM Modem",
+                "manufacturer": "Gammu Gateway"
+            }
         }
-
+        
         # Phone number input text
         phone_text_config = {
             "name": "Phone Number",
@@ -721,11 +621,15 @@ class MQTTPublisher:
             "state_topic": f"{self.topic_prefix}/phone_number/state",
             "icon": "mdi:phone",
             "mode": "text",
-            "pattern": r"^\+?[\d\s\-\(\)]*$",  # Allow empty string with *
-            "device": DEVICE_CONFIG,
-            **AVAILABILITY_CONFIG
+            "pattern": r"^\+?[\d\s\-\(\)]+$",
+            "device": {
+                "identifiers": ["sms_gateway"],
+                "name": "SMS Gateway",
+                "model": "GSM Modem",
+                "manufacturer": "Gammu Gateway"
+            }
         }
-
+        
         # Message input text
         message_text_config = {
             "name": "Message Text",
@@ -734,11 +638,15 @@ class MQTTPublisher:
             "state_topic": f"{self.topic_prefix}/message_text/state",
             "icon": "mdi:message-text",
             "mode": "text",
-            "max": 255,  # HA text entity max length (Gammu will still split long messages into multiple SMS)
-            "device": DEVICE_CONFIG,
-            **AVAILABILITY_CONFIG
+            "max": 160,
+            "device": {
+                "identifiers": ["sms_gateway"],
+                "name": "SMS Gateway",
+                "model": "GSM Modem",
+                "manufacturer": "Gammu Gateway"
+            }
         }
-
+        
         # Modem Status sensor
         device_status_config = {
             "name": "Modem Status",
@@ -747,8 +655,12 @@ class MQTTPublisher:
             "value_template": "{{ value_json.status }}",
             "json_attributes_topic": f"{self.topic_prefix}/device_status/state",
             "icon": "mdi:connection",
-            "device": DEVICE_CONFIG,
-            **AVAILABILITY_CONFIG
+            "device": {
+                "identifiers": ["sms_gateway"],
+                "name": "SMS Gateway",
+                "model": "GSM Modem",
+                "manufacturer": "Gammu Gateway"
+            }
         }
 
         # SMS Counter sensor
@@ -759,8 +671,12 @@ class MQTTPublisher:
             "value_template": "{{ value_json.count }}",
             "icon": "mdi:counter",
             "state_class": "total_increasing",
-            "device": DEVICE_CONFIG,
-            **AVAILABILITY_CONFIG
+            "device": {
+                "identifiers": ["sms_gateway"],
+                "name": "SMS Gateway",
+                "model": "GSM Modem",
+                "manufacturer": "Gammu Gateway"
+            }
         }
 
         # SMS Cost sensor (only if cost > 0)
@@ -773,8 +689,12 @@ class MQTTPublisher:
             "command_topic": f"{self.topic_prefix}/reset_counter_button",
             "payload_press": "PRESS",
             "icon": "mdi:restart",
-            "device": DEVICE_CONFIG,
-            **AVAILABILITY_CONFIG
+            "device": {
+                "identifiers": ["sms_gateway"],
+                "name": "SMS Gateway",
+                "model": "GSM Modem",
+                "manufacturer": "Gammu Gateway"
+            }
         }
 
         # Delete all SMS button
@@ -784,8 +704,12 @@ class MQTTPublisher:
             "command_topic": f"{self.topic_prefix}/delete_all_sms_button",
             "payload_press": "PRESS",
             "icon": "mdi:delete-sweep",
-            "device": DEVICE_CONFIG,
-            **AVAILABILITY_CONFIG
+            "device": {
+                "identifiers": ["sms_gateway"],
+                "name": "SMS Gateway",
+                "model": "GSM Modem",
+                "manufacturer": "Gammu Gateway"
+            }
         }
 
         # Modem IMEI sensor
@@ -795,8 +719,12 @@ class MQTTPublisher:
             "state_topic": f"{self.topic_prefix}/modem_info/state",
             "value_template": "{{ value_json.IMEI }}",
             "icon": "mdi:identifier",
-            "device": DEVICE_CONFIG,
-            **AVAILABILITY_CONFIG
+            "device": {
+                "identifiers": ["sms_gateway"],
+                "name": "SMS Gateway",
+                "model": "GSM Modem",
+                "manufacturer": "Gammu Gateway"
+            }
         }
 
         # Modem Model sensor
@@ -806,8 +734,12 @@ class MQTTPublisher:
             "state_topic": f"{self.topic_prefix}/modem_info/state",
             "value_template": "{{ value_json.Manufacturer }} {{ value_json.Model }}",
             "icon": "mdi:cellphone",
-            "device": DEVICE_CONFIG,
-            **AVAILABILITY_CONFIG
+            "device": {
+                "identifiers": ["sms_gateway"],
+                "name": "SMS Gateway",
+                "model": "GSM Modem",
+                "manufacturer": "Gammu Gateway"
+            }
         }
 
         # SIM IMSI sensor
@@ -817,8 +749,12 @@ class MQTTPublisher:
             "state_topic": f"{self.topic_prefix}/sim_info/state",
             "value_template": "{{ value_json.IMSI }}",
             "icon": "mdi:sim",
-            "device": DEVICE_CONFIG,
-            **AVAILABILITY_CONFIG
+            "device": {
+                "identifiers": ["sms_gateway"],
+                "name": "SMS Gateway",
+                "model": "GSM Modem",
+                "manufacturer": "Gammu Gateway"
+            }
         }
 
         # SMS Capacity sensor
@@ -830,8 +766,12 @@ class MQTTPublisher:
             "json_attributes_topic": f"{self.topic_prefix}/sms_capacity/state",
             "unit_of_measurement": "messages",
             "icon": "mdi:email-multiple",
-            "device": DEVICE_CONFIG,
-            **AVAILABILITY_CONFIG
+            "device": {
+                "identifiers": ["sms_gateway"],
+                "name": "SMS Gateway",
+                "model": "GSM Modem",
+                "manufacturer": "Gammu Gateway"
+            }
         }
 
         # Publish discovery configs
@@ -840,7 +780,6 @@ class MQTTPublisher:
             ("homeassistant/sensor/sms_gateway_network/config", network_config),
             ("homeassistant/sensor/sms_gateway_last_sms/config", sms_config),
             ("homeassistant/sensor/sms_gateway_send_status/config", send_status_config),
-            ("homeassistant/sensor/sms_gateway_delete_status/config", delete_status_config),
             ("homeassistant/sensor/sms_gateway_modem_status/config", device_status_config),
             ("homeassistant/sensor/sms_gateway_sent_count/config", sms_counter_config),
             ("homeassistant/sensor/sms_gateway_modem_imei/config", modem_imei_config),
@@ -865,22 +804,30 @@ class MQTTPublisher:
                 "icon": "mdi:cash",
                 "unit_of_measurement": sms_cost_currency,
                 "state_class": "total",
-                "device": DEVICE_CONFIG,
-                **AVAILABILITY_CONFIG
+                "device": {
+                    "identifiers": ["sms_gateway"],
+                    "name": "SMS Gateway",
+                    "model": "GSM Modem",
+                    "manufacturer": "Gammu Gateway"
+                }
             }
             discoveries.append(("homeassistant/sensor/sms_gateway_total_cost/config", sms_cost_config))
         
         for topic, config in discoveries:
-            self.client.publish(topic, json.dumps(config), retain=True, qos=1)
+            self.client.publish(topic, json.dumps(config), retain=True)
         
         logger.info("Published MQTT discovery configurations including SMS send button")
         
         # Publish initial states immediately after discovery
         self._publish_initial_states()
-
-        # Give HA a moment to process discovery and send retained state messages back to us
+        
+        # Wait a moment for HA to process discovery, then force empty text fields
         import time
         time.sleep(1)
+        self._publish_empty_text_fields()
+        
+        # Give HA another moment to send retained state messages back to us
+        time.sleep(0.5)
     
     def publish_signal_strength(self, signal_data: Dict[str, Any]):
         """Publish signal strength data"""
@@ -909,16 +856,22 @@ class MQTTPublisher:
         sms_data['timestamp'] = time.strftime('%Y-%m-%d %H:%M:%S')
         
         topic = f"{self.topic_prefix}/sms/state"
-        self.client.publish(topic, json.dumps(sms_data), qos=1)
+        self.client.publish(topic, json.dumps(sms_data))
         
         logger.info(f"📡 Published SMS to MQTT: {sms_data.get('Number', 'Unknown')} -> {sms_data.get('Text', '')}")
     
     def publish_device_status(self):
         """Publish USB device connectivity status"""
-        status_data = self.device_tracker.get_status_data()
-        status = status_data.get('status')
+        if not self.connected:
+            return
 
-        # Always log status changes, even if MQTT is disconnected
+        status_data = self.device_tracker.get_status_data()
+
+        topic = f"{self.topic_prefix}/device_status/state"
+        self.client.publish(topic, json.dumps(status_data), retain=True)
+
+        # Log status changes
+        status = status_data.get('status')
         if hasattr(self, '_last_device_status') and self._last_device_status != status:
             if status == 'online':
                 logger.info(f"📶 Modem: ONLINE (after {status_data.get('consecutive_failures', 0)} failures)")
@@ -928,20 +881,6 @@ class MQTTPublisher:
                 logger.info("❓ Modem: UNKNOWN (no communication attempts yet)")
 
         self._last_device_status = status
-
-        # Skip MQTT publish if status data hasn't changed (optimization)
-        if hasattr(self, '_last_published_status_data') and self._last_published_status_data == status_data:
-            logger.debug("Device status data unchanged, skipping redundant MQTT publish")
-            return
-
-        # Publish to MQTT if connected
-        if self.connected:
-            topic = f"{self.topic_prefix}/device_status/state"
-            self.client.publish(topic, json.dumps(status_data), retain=True, qos=1)
-            self._last_published_status_data = status_data.copy()  # Cache published data
-            logger.debug(f"📡 Published device status to MQTT: {status}")
-        else:
-            logger.debug("Device status changed but MQTT not connected, skipping publish")
 
     def publish_sms_counter(self):
         """Publish SMS counter and cost data"""
@@ -997,55 +936,15 @@ class MQTTPublisher:
             logger.debug(f"✅ Gammu operation '{operation_name}' succeeded")
             return result
         except Exception as e:
-            # All errors (including timeouts) count as failures
             self.device_tracker.record_failure(f"{operation_name}: {str(e)}")
             self.publish_device_status()
+            logger.warning(f"❌ Gammu operation '{operation_name}' failed: {e}")
             raise
     
     def _publish_initial_states(self):
         """Publish initial sensor states on startup"""
-        if self.connected:
-            # Reset both text input fields on startup (clear any old values from broker)
-            phone_state_topic = f"{self.topic_prefix}/phone_number/state"
-            message_state_topic = f"{self.topic_prefix}/message_text/state"
-
-            # First, delete old retained messages by publishing null payload
-            self.client.publish(phone_state_topic, None, retain=True, qos=1)
-            self.client.publish(message_state_topic, None, retain=True, qos=1)
-
-            # Small delay to ensure deletion is processed
-            import time
-            time.sleep(0.1)
-
-            # Now publish empty string as initial value (creates entity in HA)
-            self.client.publish(phone_state_topic, "", retain=True, qos=1)
-            self.client.publish(message_state_topic, "", retain=True, qos=1)
-
-            # Reset internal state
-            self.current_phone_number = ""
-            self.current_message_text = ""
-
-            logger.info("📡 Published initial text field states: cleared both phone and message fields")
-
-            # Publish initial send_status as "ready"
-            send_status_topic = f"{self.topic_prefix}/send_status"
-            send_status_data = {
-                "status": "ready",
-                "message": "SMS Gateway ready to send messages",
-                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-            }
-            self.client.publish(send_status_topic, json.dumps(send_status_data), retain=False)
-
-            # Publish initial delete_status as "idle"
-            delete_status_topic = f"{self.topic_prefix}/delete_sms_status"
-            delete_status_data = {
-                "status": "idle",
-                "message": "No delete operations yet",
-                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-            }
-            self.client.publish(delete_status_topic, json.dumps(delete_status_data), retain=False)
-
-            logger.info("📡 Published initial status states (send_status: ready, delete_status: idle)")
+        # This will be called from the main thread with access to gammu machine
+        pass
     
     def publish_initial_states_with_machine(self, gammu_machine):
         """Publish initial states with gammu machine access"""
@@ -1113,7 +1012,7 @@ class MQTTPublisher:
         except Exception as e:
             logger.error(f"Error publishing initial states: {e}")
     
-    def start_sms_monitoring(self, gammu_machine, check_interval=10):
+    def start_sms_monitoring(self, gammu_machine, check_interval=30):
         """Start SMS monitoring in background thread"""
         if not self.connected:
             return
@@ -1125,21 +1024,14 @@ class MQTTPublisher:
             last_sms_count = 0
             first_run = True
 
-            while self.connected and not self.disconnecting:
-                from support import retrieveAllSms, deleteSms
-
-                # Check for new SMS with connectivity tracking (this will handle errors and update status)
+            while self.connected:
                 try:
+                    from support import retrieveAllSms, deleteSms
+
+                    # Check for new SMS with connectivity tracking
                     all_sms = self.track_gammu_operation("retrieveAllSms", retrieveAllSms, gammu_machine)
                     current_count = len(all_sms)
-                    logger.info(f"✅ SMS monitoring cycle OK: {current_count} messages on SIM")
-                except Exception as e:
-                    # track_gammu_operation already recorded the failure and published status
-                    logger.warning(f"❌ SMS monitoring cycle failed (modem offline): {e}")
-                    time.sleep(check_interval)
-                    continue
 
-                try:
                     if first_run:
                         # On first run, publish only unread SMS
                         logger.info(f"📱 Initial SMS check: {current_count} total SMS on SIM")
@@ -1162,9 +1054,6 @@ class MQTTPublisher:
                         # On subsequent runs, publish all new SMS
                         logger.info(f"📱 Detected {current_count - last_sms_count} new SMS messages")
 
-                        deleted_count = 0
-                        auto_delete = self.config.get('auto_delete_read_sms', False)
-
                         # Process new SMS (from the end, newest first)
                         for i in range(last_sms_count, current_count):
                             if i < len(all_sms):
@@ -1175,31 +1064,27 @@ class MQTTPublisher:
                                 self.publish_sms_received(sms)
 
                                 # Auto-delete if enabled and SMS is read
+                                auto_delete = self.config.get('auto_delete_read_sms', False)
                                 if auto_delete and sms.get('State') in ['Read', 'UnRead']:
                                     try:
                                         self.track_gammu_operation("deleteSms", deleteSms, gammu_machine, all_sms[i])
                                         logger.info(f"🗑️ Auto-deleted SMS from {sms.get('Number', 'Unknown')}")
-                                        deleted_count += 1
                                     except Exception as e:
                                         logger.error(f"Error auto-deleting SMS: {e}")
 
-                        # If we auto-deleted any SMS, update capacity and get new count
-                        if auto_delete and deleted_count > 0:
+                        # If we auto-deleted any SMS, update capacity
+                        if auto_delete and current_count > 0:
                             try:
                                 capacity = self.track_gammu_operation("GetSMSStatus", gammu_machine.GetSMSStatus)
                                 self.publish_sms_capacity(capacity)
-                                # Update count to reflect deleted SMS
-                                current_count = capacity.get('SIMUsed', 0) + capacity.get('PhoneUsed', 0)
-                                logger.info(f"📊 After auto-delete: {current_count} SMS remaining on SIM")
                             except Exception as e:
                                 logger.warning(f"Could not update SMS capacity after auto-delete: {e}")
 
-                    last_sms_count = current_count
-
+                    last_sms_count = current_count if not self.config.get('auto_delete_read_sms', False) else 0
+                    
                 except Exception as e:
-                    # Non-gammu errors (like MQTT publishing errors)
-                    logger.error(f"Error processing SMS data: {e}")
-
+                    logger.error(f"Error monitoring SMS: {e}")
+                
                 time.sleep(check_interval)
         
         # Only start if both MQTT and SMS monitoring are enabled  
@@ -1214,25 +1099,21 @@ class MQTTPublisher:
             return
             
         def _publish_loop():
-            while self.connected and not self.disconnecting:
-                # Publish signal strength with connectivity tracking
+            while self.connected:
                 try:
+                    # Publish signal strength with connectivity tracking
                     signal = self.track_gammu_operation("GetSignalQuality", gammu_machine.GetSignalQuality)
                     self.publish_signal_strength(signal)
-                except Exception as e:
-                    # track_gammu_operation already recorded the failure
-                    pass  # Warning already logged by track_gammu_operation
-
-                # Publish network info with connectivity tracking
-                try:
+                    
+                    # Publish network info with connectivity tracking
                     from gammu import GSMNetworks
                     network = self.track_gammu_operation("GetNetworkInfo", gammu_machine.GetNetworkInfo)
                     network["NetworkName"] = GSMNetworks.get(network.get("NetworkCode", ""), 'Unknown')
                     self.publish_network_info(network)
+                    
                 except Exception as e:
-                    # track_gammu_operation already recorded the failure
-                    pass  # Warning already logged by track_gammu_operation
-
+                    logger.error(f"Error publishing periodic status: {e}")
+                
                 time.sleep(interval)
         
         if self.config.get('mqtt_enabled', False):
@@ -1241,28 +1122,17 @@ class MQTTPublisher:
             logger.info(f"Started MQTT periodic publishing (interval: {interval}s)")
     
     def disconnect(self):
-        """Disconnect from MQTT broker - thread-safe with duplicate call prevention"""
-        if self.disconnecting:
-            logger.debug("Disconnect already in progress, skipping")
-            return
-
-        self.disconnecting = True
-
+        """Disconnect from MQTT broker"""
         if self.client and self.connected:
-            # Publish offline availability - makes ALL entities unavailable in HA
+            # Publish offline status before disconnecting
             try:
-                self.client.publish(self.availability_topic, "offline", qos=1, retain=True)
-                logger.info("📡 Published availability: offline (all entities now unavailable)")
+                self.device_tracker.initial_check_done = False  # Force offline status
+                self.publish_device_status()
+                logger.info("📡 Published modem offline status before shutdown")
                 time.sleep(0.5)  # Give time for message to be sent
             except Exception as e:
-                logger.warning(f"Could not publish offline availability: {e}")
+                logger.warning(f"Could not publish offline status: {e}")
 
-            try:
-                self.client.loop_stop()
-                self.client.disconnect()
-                self.connected = False
-                logger.info("✅ Disconnected from MQTT broker successfully")
-            except Exception as e:
-                logger.error(f"Error during MQTT disconnect: {e}")
-        else:
-            logger.debug("MQTT client not connected, nothing to disconnect")
+            self.client.loop_stop()
+            self.client.disconnect()
+            logger.info("Disconnected from MQTT broker")

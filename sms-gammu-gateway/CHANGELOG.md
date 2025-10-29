@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.1] - 2025-10-29
+
+### Enhanced
+- **Improved Modem Status Monitoring** - Enhanced online/offline detection with better error handling and recovery
+- **Extended Message Length** - Message Text field now supports up to 255 characters (MQTT text entity limit)
+- Gammu automatically splits longer messages into multiple SMS parts during sending. Incoming message is also limited to 255 characters.
+- **Persistent Device IDs** - Support for stable `/dev/serial/by-id/` paths that survive modem reconnections
+- **Smart Availability** - Entities automatically become unavailable in Home Assistant when addon stops
+
 ## [1.5.0] - 2025-10-28
 
 ### 🚀 Major Feature Update - SMS Management & Tracking Suite
