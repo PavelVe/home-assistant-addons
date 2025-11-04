@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.2] - 2025-11-04
+
+### Fixed
+- **Modem Communication Freezing** - Fixed hanging AT commands with Gammu commtimeout (10s) and Python-level timeout (15s)
+- **Race Condition** - Added threading lock to serialize all Gammu operations and prevent parallel AT command execution
+- **Buffer Overflow** - Added 0.3s delay between commands to prevent modem buffer issues (Huawei E1750)
+
+### Enhanced
+- **Automatic Recovery** - Modem soft reset after 2 consecutive failures
+- **Offline Detection** - Increased timeout from 10 to 15 minutes
+
 ## [1.5.1] - 2025-10-29
 
 ### Enhanced

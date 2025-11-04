@@ -19,6 +19,7 @@ def init_state_machine(pin, device_path='/dev/ttyUSB0'):
     config_content = f"""[gammu]
 device = {device_path}
 connection = at
+commtimeout = 10
 """
 
     # Write config to temporary file

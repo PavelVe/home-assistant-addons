@@ -10,6 +10,7 @@ import threading
 import os
 from typing import Optional, Dict, Any
 import paho.mqtt.client as mqtt
+import concurrent.futures
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +80,7 @@ class SMSCounter:
 class DeviceConnectivityTracker:
     """Tracks USB GSM device connectivity status based on gammu communication"""
 
-    def __init__(self, offline_timeout_seconds=600):  # 10 minutes default
+    def __init__(self, offline_timeout_seconds=900):  # 15 minutes default (increased from 10)
         self.last_success_time = None
         self.consecutive_failures = 0
         self.last_error = None
@@ -159,6 +160,7 @@ class MQTTPublisher:
         self.topic_prefix = config.get('mqtt_topic_prefix', 'homeassistant/sensor/sms_gateway')
         self.availability_topic = f"{self.topic_prefix}/availability"  # Shared availability for all entities
         self.gammu_machine = None  # Will be set externally
+        self.gammu_lock = threading.Lock()  # Serialize all Gammu operations to prevent race conditions
         self.current_phone_number = ""  # Current phone number from text input
         self.current_message_text = ""  # Current message text from text input
         self.device_tracker = DeviceConnectivityTracker()  # USB device connectivity tracking
@@ -989,18 +991,35 @@ class MQTTPublisher:
         logger.info(f"📡 Published SMS capacity to MQTT: {capacity_data.get('SIMUsed', 0)}/{capacity_data.get('SIMSize', 0)}")
         
     def track_gammu_operation(self, operation_name, gammu_function, *args, **kwargs):
-        """Execute gammu operation with connectivity tracking"""
-        try:
-            result = gammu_function(*args, **kwargs)
-            self.device_tracker.record_success()
-            self.publish_device_status()
-            logger.debug(f"✅ Gammu operation '{operation_name}' succeeded")
-            return result
-        except Exception as e:
-            # All errors (including timeouts) count as failures
-            self.device_tracker.record_failure(f"{operation_name}: {str(e)}")
-            self.publish_device_status()
-            raise
+        """Execute gammu operation with connectivity tracking, thread safety, and Python-level timeout"""
+        # Use lock to serialize all Gammu operations (prevent race conditions on serial port)
+        with self.gammu_lock:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(gammu_function, *args, **kwargs)
+                try:
+                    # Python-level timeout (15s) as second defense layer
+                    # Primary defense is Gammu commtimeout=10s in config
+                    result = future.result(timeout=15)
+                    self.device_tracker.record_success()
+                    self.publish_device_status()
+                    logger.debug(f"✅ Gammu operation '{operation_name}' succeeded")
+
+                    # Small delay after each operation to let modem "breathe"
+                    # Prevents buffer overflow on modems like Huawei E1750
+                    time.sleep(0.3)
+
+                    return result
+                except concurrent.futures.TimeoutError:
+                    # Operation timed out at Python level
+                    self.device_tracker.record_failure(f"{operation_name}: Python timeout (15s)")
+                    self.publish_device_status()
+                    logger.error(f"⏱️ Gammu operation '{operation_name}' timed out after 15s")
+                    raise TimeoutError(f"Gammu operation '{operation_name}' timed out after 15s")
+                except Exception as e:
+                    # All other errors (including Gammu commtimeout errors)
+                    self.device_tracker.record_failure(f"{operation_name}: {str(e)}")
+                    self.publish_device_status()
+                    raise
     
     def _publish_initial_states(self):
         """Publish initial sensor states on startup"""
@@ -1136,6 +1155,20 @@ class MQTTPublisher:
                 except Exception as e:
                     # track_gammu_operation already recorded the failure and published status
                     logger.warning(f"❌ SMS monitoring cycle failed (modem offline): {e}")
+
+                    # After 2 consecutive failures, attempt soft reset to recover connection
+                    # Then retry every 5 failures (5, 10, 15, 20...)
+                    failures = self.device_tracker.consecutive_failures
+                    if failures == 2 or (failures > 2 and failures % 5 == 0):
+                        logger.warning(f"🔄 Attempting modem soft reset after {failures} failures...")
+                        try:
+                            # Soft reset: AT+CFUN=1,1 (restart modem software, keep SIM state)
+                            self.track_gammu_operation("Reset", gammu_machine.Reset, False)
+                            logger.info("✅ Modem soft reset completed, waiting 5s for recovery...")
+                            time.sleep(5)
+                        except Exception as reset_err:
+                            logger.error(f"❌ Modem soft reset failed: {reset_err}")
+
                     time.sleep(check_interval)
                     continue
 

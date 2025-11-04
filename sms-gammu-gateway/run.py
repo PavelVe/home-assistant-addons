@@ -29,9 +29,20 @@ logging.basicConfig(
 mqtt_logger = logging.getLogger('mqtt_publisher')
 mqtt_logger.setLevel(logging.INFO)
 
-# Suppress Flask development server warning
+# Suppress Flask development server warnings
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
+
+# Monkey-patch click.echo to suppress Flask CLI startup messages
+import click
+_original_echo = click.echo
+def _silent_echo(message=None, **kwargs):
+    # Only suppress Flask's "Debug mode:" and "Serving Flask app" messages
+    if message and isinstance(message, str):
+        if 'Debug mode:' in message or 'Serving Flask app' in message:
+            return
+    _original_echo(message, **kwargs)
+click.echo = _silent_echo
 
 def load_version():
     """Load version from config.json"""
@@ -586,7 +597,7 @@ if __name__ == '__main__':
         print(f"📡 MQTT: Disabled")
     
     print(f"✅ Ready to send/receive SMS messages")
-    
+
     try:
         if ssl:
             app.run(port=port, host="0.0.0.0", ssl_context=('/ssl/cert.pem', '/ssl/key.pem'),
@@ -594,5 +605,4 @@ if __name__ == '__main__':
         else:
             app.run(port=port, host="0.0.0.0", debug=False, use_reloader=False)
     finally:
-        # Cleanup MQTT connection
         mqtt_publisher.disconnect()
