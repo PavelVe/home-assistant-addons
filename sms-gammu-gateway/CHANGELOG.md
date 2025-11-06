@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.3] - 2025-11-06
+
+### Added
+- **Extended Device Support** - Added ttyUSB4, ttyUSB5 for multi-port Huawei modems
+- **Extended ACM Support** - Added ttyACM1, ttyACM2, ttyACM3 for cdc_acm driver modems
+
 ## [1.5.2] - 2025-11-04
 
 ### Fixed
