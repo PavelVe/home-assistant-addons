@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.8.5 🐛 ACK PROTOCOL FIX
+
+### 🐛 Critical Bug Fix
+- **Fixed ACK Response**: Server now sends correct number of received records in ACK response
+- **Protocol Compliance**: ACK response now properly reflects the actual record count from AVL packet
+- **Data Duplication Resolved**: Fixed issue where devices repeatedly sent the same data due to incorrect ACK
+
+### 🔧 Technical Details
+- Changed from fixed `0x00000001` ACK to dynamic record count based on parsed packet
+- Server now uses `parse_avl_packet_with_length()` to extract correct record count
+- Added logging for received record count and codec type
+- According to Teltonika AVL protocol, server must respond with the number of successfully received records
+
+### 📊 Impact
+- Devices will now receive proper confirmation and send new data instead of repeating old packets
+- Eliminates data loop where same 11 records were resent every 2 minutes
+- Improved server-device communication reliability
+
 ## 1.5.1 🔧 WEB INTERFACE FIX
 
 ### 🐛 Bug Fixes

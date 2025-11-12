@@ -142,13 +142,22 @@ def handle_client(client_socket, client_address, allowed_imeis=None):
                         client_socket.sendall(b"\x00")  # Reject
                         break
 
-                # Pokud máme IMEI, zpracuj data jednodušeji 
+                # Pokud máme IMEI, zpracuj data jednodušeji
                 if client_imei:
                     # Přidej data do bufferu (zachováváme buffer logiku)
                     buffer_mgr.append_data(client_imei, data)
-                    
-                    # Jednoduchá odpověď - ACK pro přijaté údaje
-                    client_socket.sendall(b"\x00\x00\x00\x01")  # ACK pro 1 packet
+
+                    # Parsuj packet a získej počet záznamů pro správný ACK
+                    records, record_count, codec_type, packet_length = parse_avl_packet_with_length(data)
+
+                    # Odpověď - ACK s počtem úspěšně přijatých záznamů
+                    # Podle Teltonika protokolu musí server odpovědět s počtem přijatých záznamů
+                    ack_count = record_count if record_count > 0 else 0
+                    ack_response = struct.pack('>I', ack_count)  # 4-byte big-endian
+                    client_socket.sendall(ack_response)
+
+                    if record_count > 0:
+                        csv_logger.log_server_event(f"IMEI {client_imei}: Received {record_count} records ({codec_type}), sent ACK")
                 else:
                     # Nemáme ještě IMEI - čekáme na handshake
                     pass
