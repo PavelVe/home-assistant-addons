@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.8.6 🎨 UI IMPROVEMENT
+
+### 🎨 User Interface
+- **Reversed RAW Data Order**: RAW data table now shows newest records first (at the top)
+- **Improved UX**: No need to scroll down to see the latest data
+- **Better Usability**: Most recent data is immediately visible
+
 ## 1.8.5 🐛 ACK PROTOCOL FIX
 
 ### 🐛 Critical Bug Fix

@@ -1,6 +1,6 @@
 {
   "name": "Teltonika Server",
-  "version": "1.8.5",
+  "version": "1.8.6",
   "slug": "teltonika_server",
   "description": "Professional GPS tracking server with Teltonika AVL protocol, IMEI security, CSV logging per device, TCP buffer management, and comprehensive web interface with device tabs",
   "startup": "services",

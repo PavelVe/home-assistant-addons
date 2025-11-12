@@ -282,7 +282,7 @@ class TeltonikaWebHandler(BaseHTTPRequestHandler):
         
         async function loadDeviceData(imei) {
             try {
-                const url = `api/device_data?imei=${imei}&limit=100`;
+                const url = `api/device_data?imei=${imei}&limit=20`;
                 const response = await fetch(url);
                 
                 if (!response.ok) {
@@ -305,8 +305,9 @@ class TeltonikaWebHandler(BaseHTTPRequestHandler):
                 html += '<table><tr>';
                 html += '<th>Čas</th><th>RAW Data</th>';
                 html += '</tr>';
-                
-                records.forEach(record => {
+
+                // Otočíme pořadí - nejnovější nahoře
+                records.reverse().forEach(record => {
                     html += `<tr>
                         <td>$${record.timestamp}</td>
                         <td style="font-family: monospace; font-size: 11px; word-break: break-all;">$${record.raw_data}</td>
