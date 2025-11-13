@@ -23,6 +23,7 @@ Each AVL record is automatically extracted with:
 - **Enhanced CSV Logger**: Automatic parsing triggered on every received message
 - **Multi-Record Support**: Single HEX message creates multiple parsed CSV rows
 - **Error Handling**: Failed parsing logged to server log without disrupting RAW storage
+- **Backward Compatibility**: Automatically reads old CSV format (`timestamp`) and converts to new format (`received_timestamp`)
 
 ### 🌐 Web Interface Updates
 - **Tab Renamed**: "Zařízení" → "Zařízení RAW"

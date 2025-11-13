@@ -23,6 +23,8 @@ class TeltonikaWebHandler(BaseHTTPRequestHandler):
                 self._serve_main_page()
             elif path == '/api/devices':
                 self._serve_devices_api()
+            elif path == '/api/devices_parsed':
+                self._serve_devices_parsed_api()
             elif path == '/api/device_data':
                 query = parse_qs(parsed_url.query)
                 imei = query.get('imei', [None])[0]
@@ -349,7 +351,7 @@ class TeltonikaWebHandler(BaseHTTPRequestHandler):
         
         async function loadDevicesParsed() {
             try {
-                const response = await fetch('api/devices');
+                const response = await fetch('api/devices_parsed');
 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -497,15 +499,31 @@ class TeltonikaWebHandler(BaseHTTPRequestHandler):
         self._send_response(200, html, 'text/html')
 
     def _serve_devices_api(self):
-        """API endpoint pro seznam zařízení"""
+        """API endpoint pro seznam zařízení (RAW record count)"""
         try:
             # Ověř, že base_dir existuje
             if not os.path.exists(self.base_dir):
                 self._send_json_response({"error": f"Base directory not found: {self.base_dir}"}, status=500)
                 return
-                
+
             csv_logger = CSVLogger(self.base_dir)
             devices = csv_logger.get_all_devices()
+            self._send_json_response(devices)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self._send_json_response({"error": f"API Error: {str(e)}"}, status=500)
+
+    def _serve_devices_parsed_api(self):
+        """API endpoint pro seznam zařízení (parsed record count)"""
+        try:
+            # Ověř, že base_dir existuje
+            if not os.path.exists(self.base_dir):
+                self._send_json_response({"error": f"Base directory not found: {self.base_dir}"}, status=500)
+                return
+
+            csv_logger = CSVLogger(self.base_dir)
+            devices = csv_logger.get_all_devices_parsed()
             self._send_json_response(devices)
         except Exception as e:
             import traceback

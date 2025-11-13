@@ -102,26 +102,29 @@ class CSVLogger:
     def read_last_records(self, imei, count=2000):
         """Načte posledních N záznamů z CSV"""
         csv_file = os.path.join(self.devices_dir, imei, 'data.csv')
-        
+
         if not os.path.exists(csv_file):
             return []
-        
+
         # Použij deque pro efektivní držení posledních N řádků
         last_records = deque(maxlen=count)
-        
+
         try:
             with open(csv_file, 'r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
+                    # Backward compatibility: starý formát používal 'timestamp' místo 'received_timestamp'
+                    if 'timestamp' in row and 'received_timestamp' not in row:
+                        row['received_timestamp'] = row['timestamp']
                     last_records.append(row)
         except Exception as e:
             print(f"Error reading CSV for {imei}: {e}")
             return []
-        
+
         return list(last_records)
     
     def get_all_devices(self):
-        """Vrátí seznam všech IMEI zařízení"""
+        """Vrátí seznam všech IMEI zařízení s RAW record count"""
         devices = []
         try:
             if os.path.exists(self.devices_dir):
@@ -138,7 +141,28 @@ class CSVLogger:
                             })
         except Exception as e:
             print(f"Error getting devices: {e}")
-        
+
+        return sorted(devices, key=lambda x: x['imei'])
+
+    def get_all_devices_parsed(self):
+        """Vrátí seznam všech IMEI zařízení s parsed record count"""
+        devices = []
+        try:
+            if os.path.exists(self.devices_dir):
+                for dirname in os.listdir(self.devices_dir):
+                    device_dir = os.path.join(self.devices_dir, dirname)
+                    if os.path.isdir(device_dir) and dirname.isdigit():
+                        # Zkontroluj jestli má parsed CSV soubor
+                        parsed_csv_file = os.path.join(device_dir, 'data-parsed.csv')
+                        if os.path.exists(parsed_csv_file):
+                            devices.append({
+                                'imei': dirname,
+                                'last_seen': self._get_last_seen(dirname),
+                                'record_count': self._get_parsed_record_count(dirname)
+                            })
+        except Exception as e:
+            print(f"Error getting parsed devices: {e}")
+
         return sorted(devices, key=lambda x: x['imei'])
     
     def _get_last_seen(self, imei):
@@ -152,8 +176,18 @@ class CSVLogger:
         return "Unknown"
     
     def _get_record_count(self, imei):
-        """Spočítej celkový počet záznamů"""
+        """Spočítej celkový počet záznamů v RAW CSV"""
         csv_file = os.path.join(self.devices_dir, imei, 'data.csv')
+        try:
+            with open(csv_file, 'r', encoding='utf-8') as f:
+                # Počítej řádky kromě hlavičky
+                return sum(1 for line in f) - 1
+        except:
+            return 0
+
+    def _get_parsed_record_count(self, imei):
+        """Spočítej celkový počet parsed záznamů"""
+        csv_file = os.path.join(self.devices_dir, imei, 'data-parsed.csv')
         try:
             with open(csv_file, 'r', encoding='utf-8') as f:
                 # Počítej řádky kromě hlavičky
