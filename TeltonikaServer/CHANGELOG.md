@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.9.0 🚀 AUTOMATIC AVL DATA PARSING
+## 1.9.1 🚀 AUTOMATIC AVL DATA PARSING
 
 ### ✨ Major New Features
 - **🔍 Automatic AVL Data Parsing**: Server now automatically parses all incoming Teltonika AVL packets
