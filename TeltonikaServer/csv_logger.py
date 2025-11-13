@@ -13,11 +13,26 @@ class CSVLogger:
         self.base_dir = base_dir
         self.devices_dir = os.path.join(base_dir, 'devices')
         self.server_log = os.path.join(base_dir, 'server.log')
-        self.csv_headers = ['timestamp', 'raw_data']
-        
+        self.csv_headers = ['received_timestamp', 'raw_data']
+        self.parsed_csv_headers = [
+            'received_timestamp',  # Čas přijmutí (stejný pro všechny záznamy z jedné zprávy)
+            'date',
+            'deviceTimestamp',
+            'gps_lat',
+            'gps_lon',
+            'gps_altitude',
+            'gps_angle',
+            'gps_satellites',
+            'gps_speedKph',
+            'acc_x',
+            'acc_y',
+            'acc_z',
+            'priority'
+        ]
+
         # Nastavení časové zóny - zkus HA timezone, pak lokální
         self.timezone = self._get_timezone()
-        
+
         # Vytvoř základní strukturu
         os.makedirs(self.devices_dir, exist_ok=True)
         os.makedirs(os.path.dirname(self.server_log), exist_ok=True)
@@ -50,28 +65,39 @@ class CSVLogger:
         self.log_server_event(message)
     
     def log_raw_record(self, imei, hex_data):
-        """Zaloguje RAW hex záznam do CSV souboru zařízení"""
+        """Zaloguje RAW hex záznam do CSV souboru zařízení a zároveň parsuje do data-parsed.csv"""
         device_dir = os.path.join(self.devices_dir, imei)
         os.makedirs(device_dir, exist_ok=True)
-        
+
+        # Vytvoř timestamp pro přijmutí
+        received_timestamp = self._get_local_time()
+
+        # 1. Uložit RAW data do data.csv
         csv_file = os.path.join(device_dir, 'data.csv')
-        
-        # Zkontroluj jestli soubor existuje
         file_exists = os.path.exists(csv_file)
-        
+
         with open(csv_file, 'a', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
-            
+
             # Přidej hlavičku pro nový soubor
             if not file_exists:
                 writer.writerow(self.csv_headers)
-            
-            # Vytvoř timestamp
-            timestamp = self._get_local_time()
-            
-            # Vytvoř CSV řádek - jen čas a raw data
-            row = [timestamp, hex_data]
+
+            # Vytvoř CSV řádek - čas přijmutí a raw data
+            row = [received_timestamp, hex_data]
             writer.writerow(row)
+
+        # 2. Parsuj a uložit do data-parsed.csv
+        try:
+            from teltonika_parser import parse_avl_data
+
+            parsed_records = parse_avl_data(hex_data)
+
+            if parsed_records:
+                self._log_parsed_records(imei, received_timestamp, parsed_records)
+        except Exception as e:
+            # Pokud parsování selže, zaloguj to ale nepřerušuj běh
+            self.log_server_event(f"Failed to parse data for IMEI {imei}: {e}")
     
     def read_last_records(self, imei, count=2000):
         """Načte posledních N záznamů z CSV"""
@@ -120,7 +146,7 @@ class CSVLogger:
         try:
             records = self.read_last_records(imei, 1)
             if records:
-                return records[-1]['timestamp']
+                return records[-1]['received_timestamp']
         except:
             pass
         return "Unknown"
@@ -149,11 +175,67 @@ class CSVLogger:
         except Exception as e:
             return f"Error reading server log: {e}"
     
+    def _log_parsed_records(self, imei, received_timestamp, parsed_records):
+        """Uloží parsované záznamy do data-parsed.csv"""
+        device_dir = os.path.join(self.devices_dir, imei)
+        parsed_csv_file = os.path.join(device_dir, 'data-parsed.csv')
+
+        # Zkontroluj jestli soubor existuje
+        file_exists = os.path.exists(parsed_csv_file)
+
+        with open(parsed_csv_file, 'a', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+
+            # Přidej hlavičku pro nový soubor
+            if not file_exists:
+                writer.writerow(self.parsed_csv_headers)
+
+            # Každý parsovaný AVL záznam = jeden řádek
+            for record in parsed_records:
+                rec_dict = record.as_dict()
+                row = [
+                    received_timestamp,  # Čas přijmutí (stejný pro všechny)
+                    rec_dict['date'],
+                    rec_dict['deviceTimestamp'],
+                    rec_dict['gps_lat'],
+                    rec_dict['gps_lon'],
+                    rec_dict['gps_altitude'],
+                    rec_dict['gps_angle'],
+                    rec_dict['gps_satellites'],
+                    rec_dict['gps_speedKph'],
+                    rec_dict['acc_x'] if rec_dict['acc_x'] is not None else '',
+                    rec_dict['acc_y'] if rec_dict['acc_y'] is not None else '',
+                    rec_dict['acc_z'] if rec_dict['acc_z'] is not None else '',
+                    rec_dict['priority']
+                ]
+                writer.writerow(row)
+
+    def read_last_parsed_records(self, imei, count=2000):
+        """Načte posledních N parsovaných záznamů z data-parsed.csv"""
+        parsed_csv_file = os.path.join(self.devices_dir, imei, 'data-parsed.csv')
+
+        if not os.path.exists(parsed_csv_file):
+            return []
+
+        # Použij deque pro efektivní držení posledních N řádků
+        last_records = deque(maxlen=count)
+
+        try:
+            with open(parsed_csv_file, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    last_records.append(row)
+        except Exception as e:
+            print(f"Error reading parsed CSV for {imei}: {e}")
+            return []
+
+        return list(last_records)
+
     def create_device_info(self, imei):
         """Vytvoří info.json pro zařízení"""
         device_dir = os.path.join(self.devices_dir, imei)
         os.makedirs(device_dir, exist_ok=True)
-        
+
         info_file = os.path.join(device_dir, 'info.json')
         if not os.path.exists(info_file):
             info = {
@@ -162,7 +244,7 @@ class CSVLogger:
                 'device_name': f"Device {imei}",
                 'notes': ""
             }
-            
+
             import json
             with open(info_file, 'w', encoding='utf-8') as f:
                 json.dump(info, f, indent=2)

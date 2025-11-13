@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.9.0 🚀 AUTOMATIC AVL DATA PARSING
+
+### ✨ Major New Features
+- **🔍 Automatic AVL Data Parsing**: Server now automatically parses all incoming Teltonika AVL packets
+- **📊 Dual CSV Export**:
+  - `data.csv` - RAW hex data (1 row per message)
+  - `data-parsed.csv` - Parsed GPS/accelerometer data (1 row per AVL record)
+- **🌐 New Web Tab "Zařízení Rozparsováno"**: View parsed data in structured table format
+- **📥 CSV Download**: Download both RAW and parsed CSV files directly from web UI
+- **⏰ Received Timestamp**: All records include server reception time for correlation
+
+### 📊 Parsed Data Fields
+Each AVL record is automatically extracted with:
+- **GPS Data**: Latitude, Longitude, Altitude, Speed, Angle, Satellites
+- **Accelerometer**: X, Y, Z axis values
+- **Metadata**: Device timestamp (UTC), date, priority
+- **Correlation**: Received timestamp links parsed records to RAW message
+
+### 🔧 Technical Implementation
+- **New Parser Module**: `teltonika_parser.py` with robust AVL protocol parsing
+- **Enhanced CSV Logger**: Automatic parsing triggered on every received message
+- **Multi-Record Support**: Single HEX message creates multiple parsed CSV rows
+- **Error Handling**: Failed parsing logged to server log without disrupting RAW storage
+
+### 🌐 Web Interface Updates
+- **Tab Renamed**: "Zařízení" → "Zařízení RAW"
+- **New Tab**: "Zařízení Rozparsováno" with 100 latest parsed records
+- **Column Update**: "Čas" → "Čas přijmutí" in RAW data view
+- **Download Buttons**: Both RAW and parsed data can be exported as CSV
+
+### 📂 File Structure
+```
+/share/teltonika/devices/{imei}/
+├── data.csv          # RAW hex data with received_timestamp
+└── data-parsed.csv   # Parsed AVL records with GPS + accelerometer
+```
+
+### 🎯 Use Cases
+- **GPS Tracking**: Extract coordinates and speed from AVL data
+- **Movement Analysis**: Analyze accelerometer data for behavior patterns
+- **Data Export**: Download parsed CSV for external analysis tools
+- **Real-time Monitoring**: View latest parsed GPS positions in web UI
+
 ## 1.8.6 🎨 UI IMPROVEMENT
 
 ### 🎨 User Interface

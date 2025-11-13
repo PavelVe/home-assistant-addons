@@ -9,7 +9,7 @@ RUN mkdir -p /data
 
 WORKDIR /app
 
-COPY main.py tcp_server.py web_server.py teltonika_protocol.py imei_registry.py csv_logger.py buffer_manager.py run.sh ./
+COPY main.py tcp_server.py web_server.py teltonika_protocol.py teltonika_parser.py imei_registry.py csv_logger.py buffer_manager.py run.sh ./
 
 RUN chmod +x run.sh
 

@@ -1,0 +1,31 @@
+# Runtime generated data
+config/
+data/
+
+# Test files
+send_test_data.py
+send_test_data2.py
+test_integration.py
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db

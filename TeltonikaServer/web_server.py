@@ -28,6 +28,11 @@ class TeltonikaWebHandler(BaseHTTPRequestHandler):
                 imei = query.get('imei', [None])[0]
                 limit = int(query.get('limit', [2000])[0])
                 self._serve_device_data_api(imei, limit)
+            elif path == '/api/device_parsed_data':
+                query = parse_qs(parsed_url.query)
+                imei = query.get('imei', [None])[0]
+                limit = int(query.get('limit', [2000])[0])
+                self._serve_device_parsed_data_api(imei, limit)
             elif path == '/api/server_log':
                 limit = int(parse_qs(parsed_url.query).get('limit', [2000])[0])
                 self._serve_server_log_api(limit)
@@ -35,6 +40,10 @@ class TeltonikaWebHandler(BaseHTTPRequestHandler):
                 query = parse_qs(parsed_url.query)
                 imei = query.get('imei', [None])[0]
                 self._serve_csv_download(imei)
+            elif path == '/api/download_parsed_csv':
+                query = parse_qs(parsed_url.query)
+                imei = query.get('imei', [None])[0]
+                self._serve_parsed_csv_download(imei)
             else:
                 self._serve_404()
         except Exception as e:
@@ -135,7 +144,8 @@ class TeltonikaWebHandler(BaseHTTPRequestHandler):
     
     <div class="tabs">
         <div class="tab active" onclick="showTab('overview', this)">Přehled</div>
-        <div class="tab" onclick="showTab('devices', this)">Zařízení</div>
+        <div class="tab" onclick="showTab('devices', this)">Zařízení RAW</div>
+        <div class="tab" onclick="showTab('devices-parsed', this)">Zařízení Rozparsováno</div>
         <div class="tab" onclick="showTab('server-log', this)">Server Log</div>
     </div>
     
@@ -156,7 +166,15 @@ class TeltonikaWebHandler(BaseHTTPRequestHandler):
             <p>Vyberte zařízení pro zobrazení RAW dat...</p>
         </div>
     </div>
-    
+
+    <div id="devices-parsed" class="tab-content" style="display: none;">
+        <h2>Parsovaná data zařízení</h2>
+        <div class="device-list" id="device-list-parsed"></div>
+        <div id="device-parsed-data">
+            <p>Vyberte zařízení pro zobrazení parsovaných dat...</p>
+        </div>
+    </div>
+
     <div id="server-log" class="tab-content" style="display: none;">
         <h2>Server Log</h2>
         <div class="log-container" id="server-log-content">Načítá se...</div>
@@ -188,6 +206,8 @@ class TeltonikaWebHandler(BaseHTTPRequestHandler):
                 loadOverview();
             } else if (tabName === 'devices') {
                 loadDevices();
+            } else if (tabName === 'devices-parsed') {
+                loadDevicesParsed();
             } else if (tabName === 'server-log') {
                 loadServerLog();
                 // Automatické obnovování server logu
@@ -303,13 +323,13 @@ class TeltonikaWebHandler(BaseHTTPRequestHandler):
                     <a href="api/download_csv?imei=$${imei}" class="download-btn">📥 Stáhnout CSV</a>
                 </div>`;
                 html += '<table><tr>';
-                html += '<th>Čas</th><th>RAW Data</th>';
+                html += '<th>Čas přijmutí</th><th>RAW Data</th>';
                 html += '</tr>';
 
                 // Otočíme pořadí - nejnovější nahoře
                 records.reverse().forEach(record => {
                     html += `<tr>
-                        <td>$${record.timestamp}</td>
+                        <td>$${record.received_timestamp}</td>
                         <td style="font-family: monospace; font-size: 11px; word-break: break-all;">$${record.raw_data}</td>
                     </tr>`;
                 });
@@ -327,18 +347,121 @@ class TeltonikaWebHandler(BaseHTTPRequestHandler):
             }
         }
         
-        async function loadServerLog() {
+        async function loadDevicesParsed() {
             try {
-                const response = await fetch('api/server_log?limit=100');
-                
+                const response = await fetch('api/devices');
+
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
-                
+
+                const responseText = await response.text();
+                const devices = JSON.parse(responseText);
+
+                let html = '';
+                devices.forEach(device => {
+                    const isSelected = currentDevice === device.imei ? 'selected' : '';
+                    html += `<div class="device-item $${isSelected}" onclick="selectDeviceParsed('$${device.imei}')">
+                        <strong>$${device.imei}</strong><br>
+                        <small>Záznamů: $${device.record_count}</small><br>
+                        <small>Naposledy: $${device.last_seen}</small>
+                    </div>`;
+                });
+
+                document.getElementById('device-list-parsed').innerHTML = html;
+
+                // Pokud máme vybrané zařízení, načti jeho data
+                if (currentDevice) {
+                    loadDeviceParsedData(currentDevice);
+                }
+            } catch (error) {
+                let errorMsg = 'Unknown error';
+                if (error.message) {
+                    errorMsg = error.message;
+                } else if (error.toString) {
+                    errorMsg = error.toString();
+                }
+                document.getElementById('device-list-parsed').innerHTML = '<p>Chyba při načítání zařízení: ' + errorMsg + '</p>';
+            }
+        }
+
+        function selectDeviceParsed(imei) {
+            currentDevice = imei;
+            loadDevicesParsed(); // Obnoví seznam s označeným zařízením
+            loadDeviceParsedData(imei);
+        }
+
+        async function loadDeviceParsedData(imei) {
+            try {
+                const url = `api/device_parsed_data?imei=${imei}&limit=100`;
+                const response = await fetch(url);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const responseText = await response.text();
+                const records = JSON.parse(responseText);
+
+                if (records.length === 0) {
+                    document.getElementById('device-parsed-data').innerHTML = '<p>Žádná parsovaná data pro toto zařízení.</p>';
+                    return;
+                }
+
+                let html = `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3>Parsovaná data pro zařízení $${imei} (posledních $${records.length} záznamů)</h3>
+                    <a href="api/download_parsed_csv?imei=$${imei}" class="download-btn">📥 Stáhnout CSV</a>
+                </div>`;
+                html += '<table><tr>';
+                html += '<th>Čas přijmutí</th><th>Datum</th><th>Čas zařízení</th><th>GPS Lat</th><th>GPS Lon</th>';
+                html += '<th>Výška</th><th>Úhel</th><th>Satelity</th><th>Rychlost</th>';
+                html += '<th>Acc X</th><th>Acc Y</th><th>Acc Z</th><th>Priorita</th>';
+                html += '</tr>';
+
+                // Otočíme pořadí - nejnovější nahoře
+                records.reverse().forEach(record => {
+                    html += `<tr>
+                        <td>$${record.received_timestamp}</td>
+                        <td>$${record.date}</td>
+                        <td>$${record.deviceTimestamp}</td>
+                        <td>$${record.gps_lat}</td>
+                        <td>$${record.gps_lon}</td>
+                        <td>$${record.gps_altitude}</td>
+                        <td>$${record.gps_angle}</td>
+                        <td>$${record.gps_satellites}</td>
+                        <td>$${record.gps_speedKph}</td>
+                        <td>$${record.acc_x}</td>
+                        <td>$${record.acc_y}</td>
+                        <td>$${record.acc_z}</td>
+                        <td>$${record.priority}</td>
+                    </tr>`;
+                });
+
+                html += '</table>';
+                document.getElementById('device-parsed-data').innerHTML = html;
+            } catch (error) {
+                let errorMsg = 'Unknown error';
+                if (error.message) {
+                    errorMsg = error.message;
+                } else if (error.toString) {
+                    errorMsg = error.toString();
+                }
+                document.getElementById('device-parsed-data').innerHTML = '<p>Chyba při načítání parsovaných dat: ' + errorMsg + '</p>';
+            }
+        }
+
+        async function loadServerLog() {
+            try {
+                const response = await fetch('api/server_log?limit=100');
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
                 const text = await response.text();
-                
+
                 document.getElementById('server-log-content').innerHTML = text.replace(/\\n/g, '<br>');
-                
+
                 // Scroll na konec
                 const container = document.getElementById('server-log-content');
                 container.scrollTop = container.scrollHeight;
@@ -394,14 +517,33 @@ class TeltonikaWebHandler(BaseHTTPRequestHandler):
         if not imei:
             self._send_json_response({"error": "IMEI parameter required"}, status=400)
             return
-        
+
         try:
             if not os.path.exists(self.base_dir):
                 self._send_json_response({"error": f"Base directory not found: {self.base_dir}"}, status=500)
                 return
-                
+
             csv_logger = CSVLogger(self.base_dir)
             records = csv_logger.read_last_records(imei, limit)
+            self._send_json_response(records)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self._send_json_response({"error": f"API Error: {str(e)}"}, status=500)
+
+    def _serve_device_parsed_data_api(self, imei, limit):
+        """API endpoint pro parsovaná data konkrétního zařízení"""
+        if not imei:
+            self._send_json_response({"error": "IMEI parameter required"}, status=400)
+            return
+
+        try:
+            if not os.path.exists(self.base_dir):
+                self._send_json_response({"error": f"Base directory not found: {self.base_dir}"}, status=500)
+                return
+
+            csv_logger = CSVLogger(self.base_dir)
+            records = csv_logger.read_last_parsed_records(imei, limit)
             self._send_json_response(records)
         except Exception as e:
             import traceback
@@ -459,6 +601,42 @@ class TeltonikaWebHandler(BaseHTTPRequestHandler):
             
         except Exception as e:
             self._send_response(500, f"Error downloading CSV: {e}", 'text/plain')
+
+    def _serve_parsed_csv_download(self, imei):
+        """API endpoint pro stažení parsed CSV souboru zařízení"""
+        if not imei:
+            self._send_response(400, "Missing IMEI parameter", 'text/plain')
+            return
+
+        try:
+            import os
+            from datetime import datetime
+
+            # Cesta k parsed CSV souboru
+            csv_file = os.path.join(self.base_dir, 'devices', imei, 'data-parsed.csv')
+
+            if not os.path.exists(csv_file):
+                self._send_response(404, f"Parsed CSV file not found for IMEI {imei}", 'text/plain')
+                return
+
+            # Načti CSV content
+            with open(csv_file, 'r', encoding='utf-8') as f:
+                csv_content = f.read()
+
+            # Generuj filename s datem
+            today = datetime.now().strftime('%Y-%m-%d')
+            filename = f"teltonika_{imei}_parsed_{today}.csv"
+
+            # Pošli jako stažený soubor
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/csv; charset=utf-8')
+            self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(csv_content.encode('utf-8'))
+
+        except Exception as e:
+            self._send_response(500, f"Error downloading parsed CSV: {e}", 'text/plain')
 
 
     def _send_response(self, status_code, content, content_type):
