@@ -241,6 +241,11 @@ class MQTTPublisher:
             client.subscribe(button_topic)
             logger.info(f"Subscribed to SMS button topic: {button_topic}")
 
+            # Subscribe to Flash SMS button topic
+            flash_button_topic = f"{self.topic_prefix}/send_flash_button"
+            client.subscribe(flash_button_topic)
+            logger.info(f"Subscribed to Flash SMS button topic: {flash_button_topic}")
+
             # Subscribe to reset counter button
             reset_counter_topic = f"{self.topic_prefix}/reset_counter_button"
             client.subscribe(reset_counter_topic)
@@ -284,6 +289,7 @@ class MQTTPublisher:
             # Check message topic and handle accordingly
             send_topic = f"{self.topic_prefix}/send"
             button_topic = f"{self.topic_prefix}/send_button"
+            flash_button_topic = f"{self.topic_prefix}/send_flash_button"
             reset_counter_topic = f"{self.topic_prefix}/reset_counter_button"
             delete_all_sms_topic = f"{self.topic_prefix}/delete_all_sms_button"
             phone_topic = f"{self.topic_prefix}/phone_number/set"
@@ -296,6 +302,9 @@ class MQTTPublisher:
             elif topic == button_topic and payload == "PRESS":
                 # Button pressed - send SMS using current text inputs
                 self._handle_button_sms_send()
+            elif topic == flash_button_topic and payload == "PRESS":
+                # Flash button pressed - send Flash SMS using current text inputs
+                self._handle_flash_button_sms_send()
             elif topic == reset_counter_topic and payload == "PRESS":
                 # Reset counter button pressed
                 self._handle_reset_counter()
@@ -346,16 +355,17 @@ class MQTTPublisher:
             text = data.get('text')
             # If 'unicode' is explicitly provided, use it; otherwise use None for auto-detection
             unicode_mode = data.get('unicode') if 'unicode' in data else None
+            flash_mode = data.get('flash', False)
 
             if not number or not text:
                 logger.error("SMS send command missing required fields: number or text")
                 return
 
-            logger.info(f"Processing SMS send command: {number} -> {text} (unicode: {unicode_mode if unicode_mode is not None else 'auto'})")
+            logger.info(f"Processing SMS send command: {number} -> {text} (unicode: {unicode_mode if unicode_mode is not None else 'auto'}, flash: {flash_mode})")
 
             # Send SMS via gammu machine (will be set externally)
             if hasattr(self, 'gammu_machine') and self.gammu_machine:
-                self._send_sms_via_gammu(number, text, unicode_mode)
+                self._send_sms_via_gammu(number, text, unicode_mode, flash_mode)
             else:
                 logger.error("Gammu machine not available for SMS sending")
                 
@@ -364,13 +374,14 @@ class MQTTPublisher:
         except Exception as e:
             logger.error(f"Error handling SMS send command: {e}")
     
-    def _send_sms_via_gammu(self, number, text, unicode_mode=None):
+    def _send_sms_via_gammu(self, number, text, unicode_mode=None, flash_mode=False):
         """Send SMS using gammu machine
 
         Args:
-            number: Phone number to send to
+            number: Phone number(s) to send to (comma-separated for multiple recipients)
             text: SMS text content
             unicode_mode: Force unicode mode (True/False), or None for auto-detection
+            flash_mode: Send as Flash SMS (True/False), default False
         """
         try:
             # Import gammu and support functions
@@ -382,9 +393,15 @@ class MQTTPublisher:
                 if unicode_mode:
                     logger.info(f"🔤 Auto-detected non-ASCII characters, using Unicode mode")
 
+            # Determine SMS class based on flash_mode
+            sms_class = 0 if flash_mode else -1
+
+            if flash_mode:
+                logger.info(f"⚡ Sending Flash SMS (will display on screen without saving)")
+
             # Prepare SMS info
             smsinfo = {
-                "Class": -1,
+                "Class": sms_class,
                 "Unicode": unicode_mode,
                 "Entries": [
                     {
@@ -394,27 +411,36 @@ class MQTTPublisher:
                 ],
             }
 
-            # Encode and send SMS
-            messages = encodeSms(smsinfo)
+            # Encode and send SMS - support multiple recipients (same as REST API)
+            messages = []
+            for recipient in number.split(','):  # Split by comma for multiple recipients
+                recipient = recipient.strip()  # Remove whitespace
+                for message in encodeSms(smsinfo):
+                    # Use same SMSC logic as REST API
+                    config_smsc = self.config.get('smsc_number', '').strip()
+                    if config_smsc:
+                        message["SMSC"] = {'Number': config_smsc}
+                        logger.info(f"Using configured SMSC: {config_smsc}")
+                    else:
+                        # Use Location 1 (same as REST API when no SMSC provided)
+                        message["SMSC"] = {'Location': 1}
+                        logger.info("Using SMSC from Location 1 (same as REST API)")
+
+                    message["Number"] = recipient
+                    messages.append(message)
+
+            # Send all messages
+            results = []
             for message in messages:
-                # Use same SMSC logic as REST API
-                config_smsc = self.config.get('smsc_number', '').strip()
-                if config_smsc:
-                    message["SMSC"] = {'Number': config_smsc}
-                    logger.info(f"Using configured SMSC: {config_smsc}")
-                else:
-                    # Use Location 1 (same as REST API when no SMSC provided)
-                    message["SMSC"] = {'Location': 1}
-                    logger.info("Using SMSC from Location 1 (same as REST API)")
-
-                message["Number"] = number
                 result = self.track_gammu_operation("SendSMS", self.gammu_machine.SendSMS, message)
-                logger.info(f"SMS sent successfully: {result}")
+                results.append(result)
+                logger.info(f"SMS sent successfully to {message['Number']}: {result}")
 
-            # Increment SMS counter and publish
-            new_count = self.sms_counter.increment()
+            # Increment SMS counter for each sent message and publish
+            for _ in messages:
+                self.sms_counter.increment()
             self.publish_sms_counter()
-            logger.info(f"📊 SMS counter incremented to: {new_count}")
+            logger.info(f"📊 SMS counter incremented by {len(messages)} to: {self.sms_counter.get_count()}")
 
             # Publish confirmation
             if self.connected:
@@ -473,13 +499,40 @@ class MQTTPublisher:
         # Send SMS using current values
         logger.info(f"Button SMS send: {self.current_phone_number} -> {self.current_message_text}")
         if hasattr(self, 'gammu_machine') and self.gammu_machine:
-            # Use unicode_mode=None for auto-detection
-            self._send_sms_via_gammu(self.current_phone_number, self.current_message_text, unicode_mode=None)
+            # Use unicode_mode=None for auto-detection, flash_mode=False for normal SMS
+            self._send_sms_via_gammu(self.current_phone_number, self.current_message_text, unicode_mode=None, flash_mode=False)
             # Always clear fields after send attempt (success or failure)
             self._clear_text_fields()
         else:
             logger.error("Gammu machine not available for SMS sending")
             # Clear fields even if gammu not available
+            self._clear_text_fields()
+
+    def _handle_flash_button_sms_send(self):
+        """Handle Flash SMS send when flash button is pressed using current text inputs"""
+        logger.info(f"Flash button pressed - current state: phone='{self.current_phone_number}', message='{self.current_message_text}'")
+
+        if not self.current_phone_number.strip() or not self.current_message_text.strip():
+            if self.connected:
+                status_topic = f"{self.topic_prefix}/send_status"
+                status_data = {
+                    "status": "missing_fields",
+                    "message": f"Please fill in phone number and message text first. Current: phone='{self.current_phone_number}', message='{self.current_message_text}'",
+                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+                }
+                self.client.publish(status_topic, json.dumps(status_data), retain=False)
+            logger.warning(f"Flash button pressed but fields empty: phone='{self.current_phone_number}', message='{self.current_message_text}'")
+            return
+
+        # Send Flash SMS using current values
+        logger.info(f"Flash Button SMS send: {self.current_phone_number} -> {self.current_message_text}")
+        if hasattr(self, 'gammu_machine') and self.gammu_machine:
+            # Use unicode_mode=None for auto-detection, flash_mode=True for Flash SMS
+            self._send_sms_via_gammu(self.current_phone_number, self.current_message_text, unicode_mode=None, flash_mode=True)
+            # Always clear fields after send attempt
+            self._clear_text_fields()
+        else:
+            logger.error("Gammu machine not available for SMS sending")
             self._clear_text_fields()
     
     def _handle_reset_counter(self):
@@ -715,6 +768,17 @@ class MQTTPublisher:
             **AVAILABILITY_CONFIG
         }
 
+        # Flash SMS send button
+        flash_button_config = {
+            "name": "Send Flash SMS",
+            "unique_id": "sms_gateway_send_flash_button",
+            "command_topic": f"{self.topic_prefix}/send_flash_button",
+            "payload_press": "PRESS",
+            "icon": "mdi:message-flash",
+            "device": DEVICE_CONFIG,
+            **AVAILABILITY_CONFIG
+        }
+
         # Phone number input text
         phone_text_config = {
             "name": "Phone Number",
@@ -850,6 +914,7 @@ class MQTTPublisher:
             ("homeassistant/sensor/sms_gateway_sim_imsi/config", sim_imsi_config),
             ("homeassistant/sensor/sms_gateway_sms_capacity/config", sms_capacity_config),
             ("homeassistant/button/sms_gateway_send_button/config", button_config),
+            ("homeassistant/button/sms_gateway_send_flash_button/config", flash_button_config),
             ("homeassistant/button/sms_gateway_reset_counter/config", reset_counter_button_config),
             ("homeassistant/button/sms_gateway_delete_all_sms/config", delete_all_sms_button_config),
             ("homeassistant/text/sms_gateway_phone_number/config", phone_text_config),
@@ -997,9 +1062,9 @@ class MQTTPublisher:
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                 future = executor.submit(gammu_function, *args, **kwargs)
                 try:
-                    # Python-level timeout (15s) as second defense layer
-                    # Primary defense is Gammu commtimeout=10s in config
-                    result = future.result(timeout=15)
+                    # Python-level timeout (60s) as second defense layer
+                    # Primary defense is Gammu commtimeout=40s in config
+                    result = future.result(timeout=60)
                     self.device_tracker.record_success()
                     self.publish_device_status()
                     logger.debug(f"✅ Gammu operation '{operation_name}' succeeded")
@@ -1011,10 +1076,10 @@ class MQTTPublisher:
                     return result
                 except concurrent.futures.TimeoutError:
                     # Operation timed out at Python level
-                    self.device_tracker.record_failure(f"{operation_name}: Python timeout (15s)")
+                    self.device_tracker.record_failure(f"{operation_name}: Python timeout (60s)")
                     self.publish_device_status()
-                    logger.error(f"⏱️ Gammu operation '{operation_name}' timed out after 15s")
-                    raise TimeoutError(f"Gammu operation '{operation_name}' timed out after 15s")
+                    logger.error(f"⏱️ Gammu operation '{operation_name}' timed out after 60s")
+                    raise TimeoutError(f"Gammu operation '{operation_name}' timed out after 60s")
                 except Exception as e:
                     # All other errors (including Gammu commtimeout errors)
                     self.device_tracker.record_failure(f"{operation_name}: {str(e)}")
@@ -1126,6 +1191,15 @@ class MQTTPublisher:
                 self.publish_sms_capacity(capacity)
             except Exception as e:
                 logger.warning(f"Could not publish SMS capacity: {e}")
+
+            # Read and log SMSC configuration (diagnostic info for troubleshooting)
+            try:
+                smsc_info = self.track_gammu_operation("GetSMSC", gammu_machine.GetSMSC, Location=1)
+                smsc_number = smsc_info.get('Number', 'Not set')
+                smsc_name = smsc_info.get('Name', 'Unknown')
+                logger.info(f"📞 SMSC Location 1: Number='{smsc_number}', Name='{smsc_name}'")
+            except Exception as e:
+                logger.warning(f"Could not read SMSC configuration: {e}")
 
             logger.info("📡 Published initial states to MQTT")
 

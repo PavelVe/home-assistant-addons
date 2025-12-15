@@ -18,9 +18,10 @@ This add-on provides a complete SMS gateway solution for Home Assistant, replaci
 
 ### 📱 SMS Management
 - **Send SMS** via REST API, MQTT, or Home Assistant UI
+- **Flash SMS Support** ⚡ - Send urgent alerts that display on screen without saving to inbox (Class 0)
 - **Receive SMS** with automatic MQTT notifications
 - **Text Input Fields** directly in Home Assistant device
-- **Smart Button** for easy SMS sending from UI
+- **Smart Buttons** for easy SMS sending from UI (normal + flash)
 - **Phone Number Persistence** - keeps number for multiple messages
 - **Automatic Unicode Detection** - Czech/special characters handled automatically
 - **Delete All SMS Button** - Clear SIM card storage with one click
@@ -148,12 +149,13 @@ sms_check_interval: 60
 
 Enable MQTT in configuration and the add-on will automatically create:
 - 📊 **GSM Signal Strength** sensor
-- 🌐 **GSM Network** sensor  
+- 🌐 **GSM Network** sensor
 - 💬 **Last SMS Received** sensor
 - ✅ **SMS Send Status** sensor
 - 📱 **Phone Number** text input
 - 💬 **Message Text** text input
 - 🔘 **Send SMS** button
+- ⚡ **Send Flash SMS** button (urgent alerts - displays on screen without saving)
 
 All entities appear under device **"SMS Gateway"** in Home Assistant.
 
@@ -183,10 +185,17 @@ notify:
 Use in automations:
 
 ```yaml
+# Normal SMS
 service: mqtt.publish
 data:
   topic: "homeassistant/sensor/sms_gateway/send"
   payload: '{"number": "+420123456789", "text": "Alert!"}'
+
+# Flash SMS (displays on screen, not saved to inbox)
+service: mqtt.publish
+data:
+  topic: "homeassistant/sensor/sms_gateway/send"
+  payload: '{"number": "+420123456789", "text": "URGENT ALERT!", "flash": true}'
 ```
 
 ## 📝 Usage Examples
@@ -216,14 +225,28 @@ automation:
         target: '+420123456789'
 ```
 
-### REST API Example
+### REST API Examples
 
 ```bash
+# Normal SMS
 curl -X POST http://192.168.1.x:5000/sms \
   -H "Content-Type: application/json" \
   -u admin:password \
   -d '{"text": "Test SMS", "number": "+420123456789"}'
+
+# Flash SMS (urgent alert - displays on screen without saving)
+curl -X POST http://192.168.1.x:5000/sms \
+  -H "Content-Type: application/json" \
+  -u admin:password \
+  -d '{"text": "URGENT!", "number": "+420123456789", "flash": true}'
 ```
+
+**Flash SMS Notes:**
+- Flash SMS displays immediately on phone screen
+- Message is NOT saved to inbox
+- Ideal for urgent alerts and notifications
+- Not all phones/carriers support Flash SMS (fallback to normal SMS)
+- Some carriers may charge differently for Flash SMS
 
 ## 🔧 API Documentation
 

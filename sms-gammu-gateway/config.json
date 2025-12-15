@@ -1,6 +1,6 @@
 {
   "name": "SMS Gammu Gateway",
-  "version": "1.5.3",
+  "version": "1.5.5",
   "slug": "sms_gammu_gateway",
   "description": "REST API SMS Gateway using python-gammu for USB GSM modems (SIM800L, Huawei, etc.). Modern replacement for deprecated SMS notifications via GSM-modem integration.",
   "startup": "services",
@@ -50,7 +50,7 @@
   "ingress": true,
   "ingress_port": 5000,
   "host_network": false,
-  "devices": ["/dev/ttyUSB0:/dev/ttyUSB0:rwm", "/dev/ttyUSB1:/dev/ttyUSB1:rwm", "/dev/ttyUSB2:/dev/ttyUSB2:rwm", "/dev/ttyUSB3:/dev/ttyUSB3:rwm", "/dev/ttyUSB4:/dev/ttyUSB4:rwm", "/dev/ttyUSB5:/dev/ttyUSB5:rwm", "/dev/ttyACM0:/dev/ttyACM0:rwm", "/dev/ttyACM1:/dev/ttyACM1:rwm", "/dev/ttyACM2:/dev/ttyACM2:rwm", "/dev/ttyACM3:/dev/ttyACM3:rwm", "/dev/ttyS0:/dev/ttyS0:rwm"],
+  "devices": ["/dev/ttyUSB0:/dev/ttyUSB0:rwm", "/dev/ttyUSB1:/dev/ttyUSB1:rwm", "/dev/ttyUSB2:/dev/ttyUSB2:rwm", "/dev/ttyUSB3:/dev/ttyUSB3:rwm", "/dev/ttyUSB4:/dev/ttyUSB4:rwm", "/dev/ttyUSB5:/dev/ttyUSB5:rwm", "/dev/ttyACM0:/dev/ttyACM0:rwm", "/dev/ttyACM1:/dev/ttyACM1:rwm", "/dev/ttyACM2:/dev/ttyACM2:rwm", "/dev/ttyACM3:/dev/ttyACM3:rwm", "/dev/ttyAMA0:/dev/ttyAMA0:rwm", "/dev/ttyAMA1:/dev/ttyAMA1:rwm", "/dev/ttyS0:/dev/ttyS0:rwm"],
   "privileged": ["SYS_RAWIO"],
   "udev": true,
   "init": false,

@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.5] - 2025-12-15
+
+### Added
+- Flash SMS (Class 0) support via REST API, MQTT and Home Assistant UI
+- New `flash` boolean parameter for `/sms` endpoint and MQTT payload
+- Raspberry Pi 5 serial port support (`/dev/ttyAMA0`, `/dev/ttyAMA1`)
+
+### Fixed
+- SMS sending timeouts on slow networks
+- Increased Gammu and Python wrapper timeouts
+- Added SMSC configuration logging on startup
+
+## [1.5.4] - 2025-11-24
+
+### Fixed
+- **MQTT Multiple Recipients** - Fixed bug where MQTT SMS sending didn't support comma-separated phone numbers
+- MQTT handler now properly splits phone numbers by comma (matching REST API behavior)
+- Formats like `+420123456,+420789012` or `0412345,0478901` now work correctly via MQTT
+- SMS counter now correctly increments for each recipient when sending to multiple numbers
+
 ## [1.5.3] - 2025-11-06
 
 ### Added

@@ -292,7 +292,8 @@ sms_model = api.model('SMS', {
     'text': fields.String(required=True, description='SMS message text', example='Hello, how are you?'),
     'number': fields.String(required=True, description='Phone number (international format)', example='+420123456789'),
     'smsc': fields.String(required=False, description='SMS Center number (optional)', example='+420603052000'),
-    'unicode': fields.Boolean(required=False, description='Use Unicode encoding', default=False)
+    'unicode': fields.Boolean(required=False, description='Use Unicode encoding', default=False),
+    'flash': fields.Boolean(required=False, description='Send as Flash SMS (displays on screen, not saved)', default=False)
 })
 
 sms_response = api.model('SMS Response', {
@@ -376,6 +377,7 @@ class SmsCollection(Resource):
         parser.add_argument('target', required=False, help='Phone number (alias for number)')
         parser.add_argument('smsc', required=False, help='SMS Center number (optional)')
         parser.add_argument('unicode', type=bool, required=False, default=False, help='Use Unicode encoding')
+        parser.add_argument('flash', type=bool, required=False, default=False, help='Send as Flash SMS')
         
         args = parser.parse_args()
         
@@ -388,9 +390,12 @@ class SmsCollection(Resource):
         sms_number = args.get('number') or args.get('target')
         if not sms_number:
             return {"status": 400, "message": "Missing required field: number or target"}, 400
-        
+
+        # Determine SMS class based on flash parameter
+        sms_class = 0 if args.get('flash', False) else -1
+
         smsinfo = {
-            "Class": -1,
+            "Class": sms_class,
             "Unicode": args.get('unicode', False),
             "Entries": [
                 {
