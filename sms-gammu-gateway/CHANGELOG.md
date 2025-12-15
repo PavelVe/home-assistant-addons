@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - Raspberry Pi 5 serial port support (`/dev/ttyAMA0`, `/dev/ttyAMA1`)
 
 ### Fixed
+- Phone Number field validation now allows comma for multiple recipients
 - SMS sending timeouts on slow networks
 - Increased Gammu and Python wrapper timeouts
 - Added SMSC configuration logging on startup

@@ -787,7 +787,7 @@ class MQTTPublisher:
             "state_topic": f"{self.topic_prefix}/phone_number/state",
             "icon": "mdi:phone",
             "mode": "text",
-            "pattern": r"^\+?[\d\s\-\(\)]*$",  # Allow empty string with *
+            "pattern": r"^\+?[\d\s\-\(\),]*$",  # Allow phone numbers with comma separator for multiple recipients
             "device": DEVICE_CONFIG,
             **AVAILABILITY_CONFIG
         }
