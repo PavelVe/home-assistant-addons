@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.6] – 2025-12-17
+
+### Fixed
+
+* Proper error handling for SMS send failures
+* `/sms` endpoint returns 503 on modem/connectivity errors
+* Handled Timeout and Gammu error codes
+
 ## [1.5.5] - 2025-12-15
 
 ### Added

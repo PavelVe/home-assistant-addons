@@ -410,14 +410,45 @@ class SmsCollection(Resource):
                 message["SMSC"] = {'Number': args.get("smsc")} if args.get("smsc") else {'Location': 1}
                 message["Number"] = number.strip()
                 messages.append(message)
-        result = [mqtt_publisher.track_gammu_operation("SendSMS", machine.SendSMS, message) for message in messages]
 
-        # Increment SMS counter for each sent message
-        for _ in messages:
-            mqtt_publisher.sms_counter.increment()
-        mqtt_publisher.publish_sms_counter()
+        try:
+            result = [mqtt_publisher.track_gammu_operation("SendSMS", machine.SendSMS, message) for message in messages]
 
-        return {"status": 200, "message": str(result)}, 200
+            # Increment SMS counter for each sent message
+            for _ in messages:
+                mqtt_publisher.sms_counter.increment()
+            mqtt_publisher.publish_sms_counter()
+
+            return {"status": 200, "message": str(result)}, 200
+
+        except TimeoutError as e:
+            # Modem timeout - service unavailable
+            api.abort(503, f"Modem timeout: {str(e)}")
+
+        except Exception as e:
+            # Try to extract Gammu error details if available
+            error_msg = str(e)
+
+            # Parse Gammu error codes for user-friendly messages
+            # Based on existing error handling pattern in mqtt_publisher.py
+            if "Code': 49" in error_msg:
+                # Can't access SIM card
+                api.abort(503, "Cannot access SIM card - check SIM card status")
+            elif "Code': 37" in error_msg:
+                # ERR_BUG - protocol implementation error
+                api.abort(503, "Modem protocol error - try again or restart modem")
+            elif "Code': 27" in error_msg:
+                # SMS sending failed
+                api.abort(503, "SMS sending failed - check SIM card, network signal or device connection")
+            elif "Code': 38" in error_msg:
+                # Network registration failed
+                api.abort(503, "Network registration failed - check SIM card and signal")
+            elif "Code': 69" in error_msg:
+                # SMSC number not found
+                api.abort(503, "SMSC number not found - configure SMS center number in SIM settings")
+            else:
+                # Generic modem error
+                api.abort(503, f"Failed to send SMS: {error_msg}")
 
 @ns_sms.route('/<int:id>')
 @ns_sms.doc('sms_by_id')
