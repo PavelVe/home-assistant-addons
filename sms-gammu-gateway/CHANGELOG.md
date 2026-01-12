@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.7] – 2026-01-12
+
+### Fixed
+
+* Critical fix for MMS notifications causing addon crash
+* Robust SMS decoding with fallback for binary/corrupted messages
+* DELETE ALL endpoint now works even with MMS on SIM card
+* Flask-RESTX marshalling error on unauthenticated requests
+* Authenticated endpoints now return proper 401 response instead of MarshallingError
+
 ## [1.5.6] – 2025-12-17
 
 ### Fixed

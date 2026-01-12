@@ -354,7 +354,7 @@ ns_status = api.namespace('status', description='Device status and information (
 @ns_sms.doc('sms_operations')
 class SmsCollection(Resource):
     @ns_sms.doc('get_all_sms')
-    @ns_sms.marshal_list_with(sms_response)
+    @ns_sms.marshal_list_with(sms_response, code=200)
     @ns_sms.doc(security='basicAuth')
     @auth.login_required
     def get(self):
@@ -365,7 +365,7 @@ class SmsCollection(Resource):
 
     @ns_sms.doc('send_sms')
     @ns_sms.expect(sms_model)
-    @ns_sms.marshal_with(send_response)
+    @ns_sms.marshal_with(send_response, code=200)
     @ns_sms.doc(security='basicAuth')
     @auth.login_required
     def post(self):
@@ -454,7 +454,7 @@ class SmsCollection(Resource):
 @ns_sms.doc('sms_by_id')
 class SmsItem(Resource):
     @ns_sms.doc('get_sms_by_id')
-    @ns_sms.marshal_with(sms_response)
+    @ns_sms.marshal_with(sms_response, code=200)
     @ns_sms.doc(security='basicAuth')
     @auth.login_required
     def get(self, id):
@@ -481,7 +481,7 @@ class SmsItem(Resource):
 @ns_sms.doc('get_and_delete_first_sms')
 class GetSms(Resource):
     @ns_sms.doc('pop_first_sms')
-    @ns_sms.marshal_with(sms_response)
+    @ns_sms.marshal_with(sms_response, code=200)
     @ns_sms.doc(security='basicAuth')
     @auth.login_required
     def get(self):

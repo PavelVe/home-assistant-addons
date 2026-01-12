@@ -96,16 +96,46 @@ def retrieveAllSms(machine):
                 "Locations": [smsPart['Location'] for smsPart in sms],
             }
 
-            decodedSms = gammu.DecodeSMS(sms)
-            if decodedSms == None:
-                result["Text"] = smsPart['Text']
-            else:
-                text = ""
-                for entry in decodedSms['Entries']:
-                    if entry['Buffer'] != None:
-                        text += entry['Buffer']
+            # Try to decode SMS - this may fail for MMS notifications or corrupted messages
+            try:
+                decodedSms = gammu.DecodeSMS(sms)
+                if decodedSms == None:
+                    # DecodeSMS returned None - use raw text from SMS part
+                    result["Text"] = smsPart.get('Text', '')
+                else:
+                    # Successfully decoded - concatenate all text entries
+                    text = ""
+                    for entry in decodedSms['Entries']:
+                        if entry.get('Buffer') is not None:
+                            text += entry['Buffer']
+                    result["Text"] = text if text else smsPart.get('Text', '')
 
-                result["Text"] = text
+            except UnicodeDecodeError as e:
+                # MMS notification or binary message that can't be decoded as UTF-8
+                print(f"Warning: Cannot decode SMS as UTF-8 (probably MMS notification): {e}")
+                # Try to get raw text, but handle potential binary data safely
+                try:
+                    raw_text = smsPart.get('Text', '')
+                    # If Text is bytes, try to decode with error handling
+                    if isinstance(raw_text, bytes):
+                        result["Text"] = raw_text.decode('utf-8', errors='replace')
+                    else:
+                        result["Text"] = str(raw_text) if raw_text else '[MMS or binary message]'
+                except Exception:
+                    result["Text"] = '[MMS or binary message - cannot display]'
+
+            except Exception as e:
+                # Any other decoding error (corrupted SMS, unknown format, etc.)
+                print(f"Warning: Error decoding SMS: {e}")
+                # Fallback to raw text with safe handling
+                try:
+                    raw_text = smsPart.get('Text', '')
+                    if isinstance(raw_text, bytes):
+                        result["Text"] = raw_text.decode('utf-8', errors='replace')
+                    else:
+                        result["Text"] = str(raw_text) if raw_text else '[Decoding error]'
+                except Exception:
+                    result["Text"] = '[Message decoding failed]'
 
             results.append(result)
 
