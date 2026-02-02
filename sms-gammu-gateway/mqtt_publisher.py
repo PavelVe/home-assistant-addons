@@ -1208,6 +1208,11 @@ class MQTTPublisher:
 
     def _handle_sms_event(self, sms_data):
         """Zpracování události SMS - trigger pro rychlejší zpracování."""
+        # Respektuj sms_monitoring_enabled nastavení
+        if not self.config.get('sms_monitoring_enabled', True):
+            logger.debug("📨 SMS event ignored (sms_monitoring_enabled=false)")
+            return
+
         logger.info(f"📨 SMS event triggered - scheduling processing in 3s (data: {sms_data})")
 
         # Zruš předchozí timer pokud existuje (debounce pro dlouhé SMS)

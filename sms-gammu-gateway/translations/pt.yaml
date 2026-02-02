@@ -37,10 +37,10 @@ configuration:
     description: Prefixo de tópico MQTT para mensagens publicadas
   sms_monitoring_enabled:
     name: Ativar monitoramento de SMS
-    description: Detectar automaticamente e publicar mensagens SMS recebidas no MQTT
+    description: Detectar e publicar automaticamente SMS recebidas no MQTT (controla callback e polling)
   sms_check_interval:
     name: Intervalo de verificação de SMS
-    description: Frequência de verificação de novas mensagens SMS (segundos, 30-300)
+    description: Intervalo de polling de backup para SMS (segundos, 30-300). O addon prefere callback em tempo real, o polling serve como backup em caso de falha ou incompatibilidade.
   sms_cost_per_message:
     name: Custo por SMS
     description: Custo por SMS enviado. Defina como 0 para desativar o rastreamento de custos.

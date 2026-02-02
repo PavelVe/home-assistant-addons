@@ -37,10 +37,10 @@ configuration:
     description: Prefix pre MQTT topicy publikovaných správ
   sms_monitoring_enabled:
     name: Povoliť SMS Monitoring
-    description: Automaticky detekovať a publikovať prichádzajúce SMS správy do MQTT
+    description: Automaticky detekovať a publikovať prichádzajúce SMS správy do MQTT (ovláda callback aj polling)
   sms_check_interval:
     name: Interval Kontroly SMS
-    description: Ako často kontrolovať nové SMS správy (sekundy, 30-300)
+    description: Fallback polling interval pre SMS (sekundy, 30-300). Addon preferuje real-time callback, polling slúži ako záloha pri zlyhaní alebo nepodpore callbacku.
   sms_cost_per_message:
     name: Cena za SMS
     description: Cena za jednu odoslanú SMS správu. Nastavte 0 pre vypnutie sledovania nákladov.
