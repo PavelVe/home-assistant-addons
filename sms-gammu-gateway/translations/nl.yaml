@@ -50,3 +50,6 @@ configuration:
   auto_delete_read_sms:
     name: Gelezen SMS automatisch verwijderen
     description: SMS-berichten automatisch van SIM-kaart verwijderen na lezen (maakt SIM-ruimte vrij)
+  missed_calls_monitoring_enabled:
+    name: Oproepbewaking inschakelen
+    description: Realtime oproepdetectie via Gammu-callbacks - detecteert inkomende en gemiste oproepen (werkt met SIM800L en de meeste modems)

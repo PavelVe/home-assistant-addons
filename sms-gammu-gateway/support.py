@@ -157,3 +157,48 @@ def deleteSms(machine, sms):
 def encodeSms(smsinfo):
     """Encode SMS for sending"""
     return gammu.EncodeSMS(smsinfo)
+
+
+def setupCallbacks(machine, unified_callback):
+    """
+    Nastaví callback pro příchozí hovory a SMS.
+    Využívá Gammu SetIncomingCall, SetIncomingSMS a jeden společný SetIncomingCallback.
+
+    Args:
+        machine: Gammu state machine
+        unified_callback: Callback funkce pro všechny události (sm, event_type, data)
+                         event_type může být 'Call' nebo 'SMS'
+
+    Returns: {'calls': bool, 'sms': bool} - co se podařilo nastavit
+    """
+    result = {'calls': False, 'sms': False}
+
+    # Nastav společný callback pro všechny události
+    try:
+        machine.SetIncomingCallback(unified_callback)
+        print("📱 Unified callback: SetIncomingCallback registered")
+    except Exception as e:
+        print(f"📱 SetIncomingCallback failed: {type(e).__name__}: {e}")
+        return result
+
+    # Povol Call notifikace (bez parametru podle dokumentace)
+    try:
+        machine.SetIncomingCall()
+        result['calls'] = True
+        print("📞 Call notifications: ENABLED")
+    except gammu.ERR_NOTSUPPORTED:
+        print("📞 SetIncomingCall: Not supported by this modem")
+    except Exception as e:
+        print(f"📞 SetIncomingCall failed: {type(e).__name__}: {e}")
+
+    # Povol SMS notifikace (bez parametru podle dokumentace)
+    try:
+        machine.SetIncomingSMS()
+        result['sms'] = True
+        print("📨 SMS notifications: ENABLED")
+    except gammu.ERR_NOTSUPPORTED:
+        print("📨 SetIncomingSMS: Not supported by this modem")
+    except Exception as e:
+        print(f"📨 SetIncomingSMS failed: {type(e).__name__}: {e}")
+
+    return result

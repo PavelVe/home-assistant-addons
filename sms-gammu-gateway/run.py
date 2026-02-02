@@ -132,6 +132,9 @@ machine = init_state_machine(pin, device_path)
 # Set gammu machine for MQTT SMS sending
 mqtt_publisher.set_gammu_machine(machine)
 
+# Call monitoring via Gammu callbacks (real-time detection)
+# Bude spuštěno po publikování initial states (níže v main)
+
 # Setup signal handlers for graceful shutdown
 def signal_handler(signum, frame):
     """Handle shutdown signals (SIGTERM, SIGINT)"""
@@ -622,6 +625,15 @@ if __name__ == '__main__':
         # Start periodic MQTT publishing
         mqtt_publisher.publish_status_periodic(machine, interval=300)  # 5 minutes
         
+        # Start call monitoring via Gammu callbacks (real-time detection)
+        if config.get('missed_calls_monitoring_enabled', False):
+            if mqtt_publisher.start_callback_monitoring(machine):
+                print(f"📞 Call Monitoring: Enabled (real-time via callbacks)")
+            else:
+                print(f"📞 Call Monitoring: Callbacks not supported by modem")
+        else:
+            print(f"📞 Call Monitoring: Disabled in configuration")
+
         # Start SMS monitoring if enabled
         if config.get('sms_monitoring_enabled', True):
             check_interval = config.get('sms_check_interval', 60)

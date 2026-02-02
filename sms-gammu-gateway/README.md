@@ -19,6 +19,7 @@ This add-on provides a complete SMS gateway solution for Home Assistant, replaci
 ### 📱 SMS Management
 - **Send SMS** via REST API, MQTT, or Home Assistant UI
 - **Flash SMS Support** ⚡ - Send urgent alerts that display on screen without saving to inbox (Class 0)
+- **Real-time Call Monitoring** 📞 - Detect incoming calls and missed calls in real-time via Gammu callbacks
 - **Receive SMS** with automatic MQTT notifications
 - **Text Input Fields** directly in Home Assistant device
 - **Smart Buttons** for easy SMS sending from UI (normal + flash)
@@ -120,6 +121,7 @@ ls -la /dev/serial/by-id/
 |--------|---------|-------------|
 | `sms_cost_per_message` | `0.0` | Cost per SMS (set to 0 to disable cost tracking sensor) |
 | `auto_delete_read_sms` | `true` | Automatically delete SMS after reading |
+| `missed_calls_monitoring_enabled` | `false` | Enable missed calls detection (requires modem support) |
 
 ### Example Configuration
 
@@ -156,6 +158,12 @@ Enable MQTT in configuration and the add-on will automatically create:
 - 💬 **Message Text** text input
 - 🔘 **Send SMS** button
 - ⚡ **Send Flash SMS** button (urgent alerts - displays on screen without saving)
+- 📞 **Incoming Call** binary sensor (if enabled) - real-time ringing detection
+  - State: ON = ringing, OFF = not ringing
+  - Attributes: Number, ring_start, ring_count
+- 📞 **Last Missed Call** sensor (if enabled)
+  - State: caller phone number
+  - Attributes: ring_start, ring_end, ring_duration_seconds, ring_count, processed_at
 
 All entities appear under device **"SMS Gateway"** in Home Assistant.
 
@@ -223,6 +231,37 @@ automation:
       data:
         message: 'Door opened!'
         target: '+420123456789'
+```
+
+### Call Monitoring Automations
+
+```yaml
+# Notification when phone is ringing
+automation:
+  - alias: "Phone Ringing Alert"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.sms_gateway_incoming_call
+        to: "on"
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "Incoming Call"
+          message: "Calling: {{ state_attr('binary_sensor.sms_gateway_incoming_call', 'Number') }}"
+
+# Notification for missed call
+automation:
+  - alias: "Missed Call Alert"
+    trigger:
+      - platform: state
+        entity_id: sensor.sms_gateway_last_missed_call
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "Missed Call"
+          message: >
+            From: {{ states('sensor.sms_gateway_last_missed_call') }}
+            Duration: {{ state_attr('sensor.sms_gateway_last_missed_call', 'ring_duration_seconds') }}s
 ```
 
 ### REST API Examples
@@ -295,6 +334,25 @@ Access full API documentation at: `http://your-ha-ip:5000/docs/`
 - This is SMSC (SMS Center) issue
 - Add-on automatically uses Location 1 fallback
 - Works same as REST API
+
+### Call Monitoring Not Working
+Check addon logs for message "Call callback: NOT SUPPORTED".
+
+**How it works:**
+- Uses Gammu `SetIncomingCall()` callback for real-time detection
+- `ReadDevice()` runs every 1s to process incoming events
+- Does NOT require MC (Missed Calls) memory - works on SIM800L!
+
+**Supported modems:**
+- SIM800L, SIM800C, SIM800H (tested!)
+- Huawei E3372, E173, E220
+- Quectel M66, MC60, EC25
+- Most modems with CLIP (Calling Line Identification) support
+
+**If not working:**
+- Check if modem supports CLIP (AT+CLIP=1)
+- Try enabling/disabling and restart addon
+- Some virtual modems may not support call events
 
 ## 📋 Version History
 

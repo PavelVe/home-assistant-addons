@@ -50,3 +50,6 @@ configuration:
   auto_delete_read_sms:
     name: Auto-delete Read SMS
     description: Automatically delete SMS messages from SIM card after reading (frees up SIM space)
+  missed_calls_monitoring_enabled:
+    name: Enable Call Monitoring
+    description: Real-time call detection via Gammu callbacks - detects incoming and missed calls (works on SIM800L and most modems)

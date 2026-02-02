@@ -50,3 +50,6 @@ configuration:
   auto_delete_read_sms:
     name: Eliminar automáticamente SMS leídos
     description: Eliminar automáticamente mensajes SMS de la tarjeta SIM después de leer (libera espacio SIM)
+  missed_calls_monitoring_enabled:
+    name: Activar monitoreo de llamadas
+    description: Detección de llamadas en tiempo real mediante callbacks de Gammu - detecta llamadas entrantes y perdidas (funciona con SIM800L y la mayoría de módems)

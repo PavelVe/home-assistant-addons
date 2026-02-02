@@ -50,3 +50,6 @@ configuration:
   auto_delete_read_sms:
     name: Automaticky mazať prečítané SMS
     description: Automaticky zmazať SMS správy zo SIM karty po ich prečítaní (uvoľní miesto na SIM)
+  missed_calls_monitoring_enabled:
+    name: Povoliť monitoring hovorov
+    description: Real-time detekcia hovorov pomocou Gammu callbackov - detekuje prichádzajúce a zmeškané hovory (funguje na SIM800L a väčšine modemov)

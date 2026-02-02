@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] – 2026-02-02
+
+📣 ANNOUNCEMENT
+
+Instant SMS delivery and real-time incoming call detection are here! 
+No waiting, no polling — events arrive the moment they happen.
+
+### Added
+
+* Real-time detection of incoming and missed calls via Gammu callbacks (including SIM800L)
+* New binary sensor **Incoming Call** for live ringing state
+* New sensor **Last Missed Call** with missed call details
+* SMS callback support for faster message delivery
+* Dedicated `ReadDevice()` loop (1s interval) for real-time events
+
+### Changed
+
+* Call detection works on modems without call history support
+* SMS can now arrive instantly via callback (polling remains as fallback)
+
+
 ## [1.5.7] – 2026-01-12
 
 ### Fixed

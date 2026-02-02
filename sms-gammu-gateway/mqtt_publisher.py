@@ -8,6 +8,7 @@ import time
 import logging
 import threading
 import os
+from datetime import datetime
 from typing import Optional, Dict, Any
 import paho.mqtt.client as mqtt
 import concurrent.futures
@@ -165,6 +166,17 @@ class MQTTPublisher:
         self.current_message_text = ""  # Current message text from text input
         self.device_tracker = DeviceConnectivityTracker()  # USB device connectivity tracking
         self.sms_counter = SMSCounter()  # SMS counter with persistence
+
+        # Call monitoring (real-time via Gammu callbacks)
+        self.call_monitoring_enabled = False
+        self.current_call = None  # {'number': str, 'ring_start': datetime, 'ring_count': int}
+        self._read_device_thread = None
+
+        # SMS callback (faster delivery, polling as fallback)
+        self.sms_callback_enabled = False
+        self._sms_callback_pending = False  # flag že přišla SMS
+        self._sms_callback_timer = None     # debounce timer
+        self._sms_process_callback = None   # callback pro zpracování SMS
 
         if config.get('mqtt_enabled', False):
             self._setup_client()
@@ -900,6 +912,37 @@ class MQTTPublisher:
             **AVAILABILITY_CONFIG
         }
 
+        # Call monitoring sensors - only if enabled
+        incoming_call_config = None
+        missed_call_config = None
+        if self.config.get('missed_calls_monitoring_enabled', False):
+            # Binary sensor - Incoming Call (real-time ringing detection)
+            incoming_call_config = {
+                "name": "Incoming Call",
+                "unique_id": "sms_gateway_incoming_call",
+                "state_topic": f"{self.topic_prefix}/incoming_call/state",
+                "payload_on": "ON",
+                "payload_off": "OFF",
+                "value_template": "{{ value_json.state }}",
+                "json_attributes_topic": f"{self.topic_prefix}/incoming_call/state",
+                "icon": "mdi:phone-ring",
+                "device_class": "sound",
+                "device": DEVICE_CONFIG,
+                **AVAILABILITY_CONFIG
+            }
+
+            # Sensor - Last Missed Call (with extended attributes)
+            missed_call_config = {
+                "name": "Last Missed Call",
+                "unique_id": "sms_gateway_last_missed_call",
+                "state_topic": f"{self.topic_prefix}/missed_call/state",
+                "value_template": "{{ value_json.Number }}",
+                "json_attributes_topic": f"{self.topic_prefix}/missed_call/state",
+                "icon": "mdi:phone-missed",
+                "device": DEVICE_CONFIG,
+                **AVAILABILITY_CONFIG
+            }
+
         # Publish discovery configs
         discoveries = [
             ("homeassistant/sensor/sms_gateway_signal/config", signal_config),
@@ -936,7 +979,13 @@ class MQTTPublisher:
                 **AVAILABILITY_CONFIG
             }
             discoveries.append(("homeassistant/sensor/sms_gateway_total_cost/config", sms_cost_config))
-        
+
+        # Add call monitoring sensors if enabled
+        if incoming_call_config:
+            discoveries.append(("homeassistant/binary_sensor/sms_gateway_incoming_call/config", incoming_call_config))
+        if missed_call_config:
+            discoveries.append(("homeassistant/sensor/sms_gateway_last_missed_call/config", missed_call_config))
+
         for topic, config in discoveries:
             self.client.publish(topic, json.dumps(config), retain=True, qos=1)
         
@@ -1054,7 +1103,238 @@ class MQTTPublisher:
         topic = f"{self.topic_prefix}/sms_capacity/state"
         self.client.publish(topic, json.dumps(capacity_data), retain=True)
         logger.info(f"📡 Published SMS capacity to MQTT: {capacity_data.get('SIMUsed', 0)}/{capacity_data.get('SIMSize', 0)}")
-        
+
+    def publish_missed_call(self, call_data: dict):
+        """Publish missed call to MQTT (real-time callback verze)."""
+        if not self.connected:
+            return
+
+        # Přidej processed_at pokud chybí
+        if 'processed_at' not in call_data:
+            call_data['processed_at'] = datetime.now().isoformat()
+
+        topic = f"{self.topic_prefix}/missed_call/state"
+        self.client.publish(topic, json.dumps(call_data), retain=True)
+
+        logger.info(f"📞 Missed call from {call_data.get('Number', 'Unknown')} "
+                    f"(rang {call_data.get('ring_duration_seconds', '?')}s, "
+                    f"{call_data.get('ring_count', '?')} rings)")
+
+    def publish_incoming_call_state(self, is_ringing: bool):
+        """Publikuje stav příchozího hovoru (real-time binary sensor)."""
+        if not self.connected:
+            return
+
+        if is_ringing and self.current_call:
+            payload = {
+                "state": "ON",
+                "Number": self.current_call['number'],
+                "ring_start": self.current_call['ring_start'].isoformat(),
+                "ring_count": self.current_call['ring_count']
+            }
+        else:
+            payload = {"state": "OFF"}
+
+        topic = f"{self.topic_prefix}/incoming_call/state"
+        self.client.publish(topic, json.dumps(payload), retain=False)
+
+        if is_ringing and self.current_call:
+            logger.info(f"📞 RING #{self.current_call['ring_count']} from {self.current_call['number']}")
+
+    def _handle_gammu_event(self, sm, event_type, data):
+        """
+        Unified Gammu callback pro všechny události (hovory i SMS).
+        Volá se z ReadDevice() loop.
+        """
+        try:
+            logger.debug(f"📱 Gammu event: type={event_type}, data={data}")
+
+            if event_type == 'Call':
+                self._handle_call_event(data)
+            elif event_type == 'SMS':
+                self._handle_sms_event(data)
+            else:
+                logger.debug(f"📱 Unknown event type: {event_type}")
+
+        except Exception as e:
+            logger.error(f"Error in Gammu callback: {e}")
+
+    def _handle_call_event(self, call_data):
+        """Zpracování události hovoru."""
+        status = call_data.get('Status', '')
+        number = call_data.get('Number', '')
+
+        logger.debug(f"📞 Call event: status={status}, number={number}")
+
+        if status == 'IncomingCall':
+            if self.current_call is None:
+                # Nový hovor - začátek zvonění
+                self.current_call = {
+                    'number': number if number else 'Unknown',
+                    'ring_start': datetime.now(),
+                    'ring_count': 1
+                }
+                logger.info(f"📞 Incoming call from {self.current_call['number']}")
+            else:
+                # Pokračující zvonění (RING)
+                self.current_call['ring_count'] += 1
+
+            self.publish_incoming_call_state(True)
+
+        elif status in ['CallRemoteEnd', 'CallLocalEnd']:
+            # Hovor ukončen (volající zavěsil nebo my)
+            if self.current_call:
+                ring_end = datetime.now()
+                duration = (ring_end - self.current_call['ring_start']).total_seconds()
+
+                # Publikuj zmeškaný hovor
+                self.publish_missed_call({
+                    'Number': self.current_call['number'],
+                    'ring_start': self.current_call['ring_start'].isoformat(),
+                    'ring_end': ring_end.isoformat(),
+                    'ring_duration_seconds': int(duration),
+                    'ring_count': self.current_call['ring_count']
+                })
+
+                self.current_call = None
+
+            self.publish_incoming_call_state(False)
+
+        elif status == 'CallStart':
+            # Hovor byl přijat - není zmeškaný, jen resetuj stav
+            logger.info("📞 Call answered (not missed)")
+            self.current_call = None
+            self.publish_incoming_call_state(False)
+
+    def _handle_sms_event(self, sms_data):
+        """Zpracování události SMS - trigger pro rychlejší zpracování."""
+        logger.info(f"📨 SMS event triggered - scheduling processing in 3s (data: {sms_data})")
+
+        # Zruš předchozí timer pokud existuje (debounce pro dlouhé SMS)
+        if self._sms_callback_timer:
+            self._sms_callback_timer.cancel()
+
+        # Nastav flag a spusť timer (3s debounce pro multi-part SMS)
+        self._sms_callback_pending = True
+        self._sms_callback_timer = threading.Timer(
+            3.0,
+            self._process_sms_from_callback
+        )
+        self._sms_callback_timer.start()
+
+    def _process_sms_from_callback(self):
+        """Zpracování SMS po debounce - přímo zpracuje nové SMS."""
+        if not self._sms_callback_pending:
+            return
+
+        self._sms_callback_pending = False
+        logger.info("📨 Processing SMS from callback (after 3s debounce)")
+
+        if not self.gammu_machine:
+            logger.warning("Gammu machine not available for SMS processing")
+            return
+
+        try:
+            from support import retrieveAllSms, deleteSms
+
+            # Získej všechny SMS
+            all_sms = self.track_gammu_operation("retrieveAllSms", retrieveAllSms, self.gammu_machine)
+
+            if not all_sms:
+                logger.debug("No SMS to process")
+                return
+
+            auto_delete = self.config.get('auto_delete_read_sms', False)
+            processed_count = 0
+
+            # Zpracuj všechny nepřečtené SMS
+            for sms in all_sms:
+                if sms.get('State') == 'UnRead':
+                    sms_copy = sms.copy()
+                    sms_copy.pop("Locations", None)
+
+                    # Publikuj do MQTT
+                    self.publish_sms_received(sms_copy)
+                    processed_count += 1
+
+                    # Auto-delete pokud povoleno
+                    if auto_delete:
+                        try:
+                            self.track_gammu_operation("deleteSms", deleteSms, self.gammu_machine, sms)
+                            logger.info(f"🗑️ Auto-deleted SMS from {sms.get('Number', 'Unknown')}")
+                        except Exception as e:
+                            logger.error(f"Error auto-deleting SMS: {e}")
+
+            if processed_count > 0:
+                logger.info(f"📨 Callback processed {processed_count} new SMS")
+
+                # Aktualizuj kapacitu
+                try:
+                    capacity = self.track_gammu_operation("GetSMSStatus", self.gammu_machine.GetSMSStatus)
+                    self.publish_sms_capacity(capacity)
+                except Exception as e:
+                    logger.warning(f"Could not update SMS capacity: {e}")
+
+        except Exception as e:
+            logger.error(f"Error processing SMS from callback: {e}")
+
+    def start_callback_monitoring(self, gammu_machine):
+        """
+        Spustí real-time monitoring hovorů a SMS přes Gammu callbacky.
+
+        Args:
+            gammu_machine: Gammu state machine
+
+        Returns:
+            True pokud aspoň jeden callback funguje, False jinak
+        """
+        from support import setupCallbacks
+
+        # Setup unified callbacku pro hovory i SMS
+        result = setupCallbacks(
+            gammu_machine,
+            self._handle_gammu_event
+        )
+
+        self.call_monitoring_enabled = result['calls']
+        self.sms_callback_enabled = result['sms']
+
+        if result['calls']:
+            logger.info("📞 Call callback: ENABLED (real-time detection)")
+            # Publikuj iniciální OFF stav pro incoming_call
+            self.publish_incoming_call_state(False)
+        else:
+            logger.warning("📞 Call callback: NOT SUPPORTED by modem")
+
+        if result['sms']:
+            logger.info("📨 SMS callback: ENABLED (faster delivery)")
+        else:
+            logger.info("📨 SMS callback: NOT SUPPORTED (using polling only)")
+
+        # Spusť ReadDevice loop jen pokud aspoň jeden callback funguje
+        if result['calls'] or result['sms']:
+            def _read_device_loop():
+                logger.info("🔄 ReadDevice loop started (1s interval)")
+                while self.connected and not self.disconnecting:
+                    try:
+                        with self.gammu_lock:  # Použij sdílený lock
+                            gammu_machine.ReadDevice()
+                    except Exception as e:
+                        # Normální chyba když běží jiná operace
+                        logger.debug(f"ReadDevice: {e}")
+                    time.sleep(1)
+                logger.info("🔄 ReadDevice loop stopped")
+
+            self._read_device_thread = threading.Thread(
+                target=_read_device_loop,
+                daemon=True,
+                name="ReadDeviceLoop"
+            )
+            self._read_device_thread.start()
+            return True
+
+        return False
+
     def track_gammu_operation(self, operation_name, gammu_function, *args, **kwargs):
         """Execute gammu operation with connectivity tracking, thread safety, and Python-level timeout"""
         # Use lock to serialize all Gammu operations (prevent race conditions on serial port)
@@ -1306,6 +1586,9 @@ class MQTTPublisher:
                 except Exception as e:
                     # Non-gammu errors (like MQTT publishing errors)
                     logger.error(f"Error processing SMS data: {e}")
+
+                # Missed calls jsou nyní monitorovány real-time přes callbacky
+                # (start_callback_monitoring spouští ReadDevice loop)
 
                 time.sleep(check_interval)
         
