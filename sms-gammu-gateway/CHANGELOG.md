@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.1] – 2026-02-03
+
+### Fixed
+
+* **Full Ingress Support** - Swagger UI now works correctly via Home Assistant Ingress
+
+### Changed
+* Removed redundant `port` configuration option - port is managed via Network settings in HA UI
+* Internal port is fixed at 5000 (matches ingress_port), external port configurable in Network section working now correctly.
+
+
 ## [1.6.0] – 2026-02-02
 
 📣 ANNOUNCEMENT

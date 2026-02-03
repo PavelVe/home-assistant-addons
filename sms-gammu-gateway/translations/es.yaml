@@ -5,9 +5,6 @@ configuration:
   pin:
     name: PIN SIM
     description: Código PIN de la tarjeta SIM (dejar vacío si no se requiere PIN)
-  port:
-    name: Puerto API
-    description: Puerto para la API REST de la puerta de enlace SMS
   ssl:
     name: Activar SSL
     description: Activar HTTPS para conexiones seguras (requiere certificados SSL)

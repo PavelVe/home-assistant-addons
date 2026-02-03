@@ -1,6 +1,6 @@
 {
   "name": "SMS Gammu Gateway",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "slug": "sms_gammu_gateway",
   "description": "REST API SMS Gateway using python-gammu for USB GSM modems (SIM800L, Huawei, etc.). Modern replacement for deprecated SMS notifications via GSM-modem integration.",
   "startup": "services",
@@ -12,7 +12,6 @@
   "options": {
     "device_path": "/dev/ttyUSB0",
     "pin": "",
-    "port": 5000,
     "ssl": false,
     "username": "admin",
     "password": "password",
@@ -32,7 +31,6 @@
   "schema": {
     "device_path": "str",
     "pin": "str?",
-    "port": "int(1,65535)",
     "ssl": "bool",
     "username": "str",
     "password": "str",

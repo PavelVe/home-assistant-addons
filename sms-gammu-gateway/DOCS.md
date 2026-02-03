@@ -64,7 +64,6 @@ curl -X POST http://192.168.1.x:5000/sms \
 |-----------|---------|-------------|
 | `device_path` | `/dev/ttyUSB0` | Path to GSM modem (supported: ttyUSB0-3, ttyACM0, ttyS0) |
 | `pin` | `""` | SIM card PIN (empty = no PIN) |
-| `port` | `5000` | API port |
 | `username` | `admin` | API username |
 | `password` | `password` | **⚠️ CHANGE THIS!** |
 
@@ -174,7 +173,9 @@ automation:
 ## 📡 REST API
 
 ### Swagger Documentation
-Full API documentation: `http://your-ha-ip:5000/docs/`
+Access full API documentation via:
+- **Ingress**: Click "Open Web UI" in add-on panel, then "Open Swagger API Documentation"
+- **Direct**: `http://your-ha-ip:PORT/docs/` (PORT configurable in Network settings, default 5000)
 
 ### Main Endpoints
 
@@ -358,5 +359,5 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete version history and detailed cha
 ## 🆘 Support
 
 - **Issues**: [GitHub Issues](https://github.com/pavelve/home-assistant-addons/issues)
-- **Swagger UI**: http://your-ha-ip:5000/docs/
+- **Swagger UI**: Available via Ingress or direct port access
 - **Original Project**: [sms-gammu-gateway](https://github.com/pajikos/sms-gammu-gateway)

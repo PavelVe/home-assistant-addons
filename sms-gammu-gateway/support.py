@@ -8,6 +8,7 @@ Licensed under Apache License 2.0
 
 import sys
 import os
+import logging
 import gammu
 
 
@@ -31,34 +32,31 @@ commtimeout = 40
     
     try:
         sm.Init()
-        print(f"Successfully initialized gammu with device: {device_path}")
-        
+        logging.info(f"Successfully initialized gammu with device: {device_path}")
+
         # Try to check security status
         try:
             security_status = sm.GetSecurityStatus()
-            print(f"SIM security status: {security_status}")
-            
+            logging.info(f"SIM security status: {security_status}")
+
             if security_status == 'PIN':
                 if pin is None or pin == '':
-                    print("PIN is required but not provided.")
+                    logging.error("PIN is required but not provided.")
                     sys.exit(1)
                 else:
                     sm.EnterSecurityCode('PIN', pin)
-                    print("PIN entered successfully")
-                    
+                    logging.info("PIN entered successfully")
+
         except Exception as e:
-            print(f"Warning: Could not check SIM security status: {e}")
-            
+            logging.warning(f"Could not check SIM security status: {e}")
+
     except gammu.ERR_NOSIM:
-        print("Warning: SIM card not accessible, but device is connected")
+        logging.warning("SIM card not accessible, but device is connected")
     except Exception as e:
-        print(f"Error initializing device: {e}")
-        print("Available devices:")
-        import os
+        logging.error(f"Error initializing device: {e}")
         try:
             devices = [d for d in os.listdir('/dev/') if d.startswith('tty')]
-            for device in sorted(devices):
-                print(f"  /dev/{device}")
+            logging.info(f"Available devices: {', '.join([f'/dev/{d}' for d in sorted(devices)[:10]])}")
         except:
             pass
         raise
@@ -112,7 +110,7 @@ def retrieveAllSms(machine):
 
             except UnicodeDecodeError as e:
                 # MMS notification or binary message that can't be decoded as UTF-8
-                print(f"Warning: Cannot decode SMS as UTF-8 (probably MMS notification): {e}")
+                logging.warning(f"Cannot decode SMS as UTF-8 (probably MMS notification): {e}")
                 # Try to get raw text, but handle potential binary data safely
                 try:
                     raw_text = smsPart.get('Text', '')
@@ -126,7 +124,7 @@ def retrieveAllSms(machine):
 
             except Exception as e:
                 # Any other decoding error (corrupted SMS, unknown format, etc.)
-                print(f"Warning: Error decoding SMS: {e}")
+                logging.warning(f"Error decoding SMS: {e}")
                 # Fallback to raw text with safe handling
                 try:
                     raw_text = smsPart.get('Text', '')
@@ -142,7 +140,7 @@ def retrieveAllSms(machine):
         return results
 
     except Exception as e:
-        print(f"Error retrieving SMS: {e}")
+        logging.error(f"Error retrieving SMS: {e}")
         raise  # Re-raise exception so track_gammu_operation can detect failure
 
 
@@ -151,7 +149,7 @@ def deleteSms(machine, sms):
     try:
         list(map(lambda location: machine.DeleteSMS(Folder=0, Location=location), sms["Locations"]))
     except Exception as e:
-        print(f"Error deleting SMS: {e}")
+        logging.error(f"Error deleting SMS: {e}")
 
 
 def encodeSms(smsinfo):
@@ -176,29 +174,29 @@ def setupCallbacks(machine, unified_callback):
     # Nastav společný callback pro všechny události
     try:
         machine.SetIncomingCallback(unified_callback)
-        print("📱 Unified callback: SetIncomingCallback registered")
+        logging.info("📱 Unified callback: SetIncomingCallback registered")
     except Exception as e:
-        print(f"📱 SetIncomingCallback failed: {type(e).__name__}: {e}")
+        logging.error(f"📱 SetIncomingCallback failed: {type(e).__name__}: {e}")
         return result
 
     # Povol Call notifikace (bez parametru podle dokumentace)
     try:
         machine.SetIncomingCall()
         result['calls'] = True
-        print("📞 Call notifications: ENABLED")
+        logging.info("📞 Call notifications: ENABLED")
     except gammu.ERR_NOTSUPPORTED:
-        print("📞 SetIncomingCall: Not supported by this modem")
+        logging.warning("📞 SetIncomingCall: Not supported by this modem")
     except Exception as e:
-        print(f"📞 SetIncomingCall failed: {type(e).__name__}: {e}")
+        logging.error(f"📞 SetIncomingCall failed: {type(e).__name__}: {e}")
 
     # Povol SMS notifikace (bez parametru podle dokumentace)
     try:
         machine.SetIncomingSMS()
         result['sms'] = True
-        print("📨 SMS notifications: ENABLED")
+        logging.info("📨 SMS notifications: ENABLED")
     except gammu.ERR_NOTSUPPORTED:
-        print("📨 SetIncomingSMS: Not supported by this modem")
+        logging.warning("📨 SetIncomingSMS: Not supported by this modem")
     except Exception as e:
-        print(f"📨 SetIncomingSMS failed: {type(e).__name__}: {e}")
+        logging.error(f"📨 SetIncomingSMS failed: {type(e).__name__}: {e}")
 
     return result

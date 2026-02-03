@@ -5,9 +5,6 @@ configuration:
   pin:
     name: SIM-PIN
     description: PIN-Code der SIM-Karte (leer lassen, wenn kein PIN erforderlich)
-  port:
-    name: API-Port
-    description: Port für die SMS Gateway REST API
   ssl:
     name: SSL aktivieren
     description: HTTPS für sichere Verbindungen aktivieren (erfordert SSL-Zertifikate)

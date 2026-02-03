@@ -5,9 +5,6 @@ configuration:
   pin:
     name: PIN SIM karty
     description: PIN kód SIM karty (nechajte prázdne, ak PIN nie je potrebný)
-  port:
-    name: Port API
-    description: Port pre REST API SMS Gateway
   ssl:
     name: Povoliť SSL
     description: Povoliť HTTPS pre zabezpečené pripojenia (vyžaduje SSL certifikáty)

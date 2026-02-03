@@ -12,9 +12,9 @@ import json
 import logging
 import signal
 import sys
-from flask import Flask, request
+from flask import Flask, request, render_template
 from flask_httpauth import HTTPBasicAuth
-from flask_restx import Api, Resource, fields, reqparse
+from flask_restx import Api, Resource, fields, reqparse, apidoc
 
 from support import init_state_machine, retrieveAllSms, deleteSms, encodeSms
 from mqtt_publisher import MQTTPublisher
@@ -90,7 +90,6 @@ def load_ha_config():
         return {
             'device_path': '/dev/ttyUSB0',
             'pin': '',
-            'port': 5000,
             'ssl': False,
             'username': 'admin',
             'password': 'password',
@@ -112,7 +111,7 @@ VERSION = load_version()
 config = load_ha_config()
 pin = config.get('pin') if config.get('pin') else None
 ssl = config.get('ssl', False)
-port = config.get('port', 5000)
+port = 5000  # Fixed port - must match ingress_port in config.json
 username = config.get('username', 'admin')
 password = config.get('password', 'password')
 device_path = config.get('device_path', '/dev/ttyUSB0')
@@ -262,8 +261,15 @@ def home():
     '''
     return Response(html.replace('{VERSION}', VERSION), mimetype='text/html')
 
-# Swagger UI Configuration
-# Put Swagger UI on /docs/ path for direct access via port 5000
+# Swagger UI Configuration - with relative paths for Ingress support
+# Override swagger_static to use relative paths (fixes HA Ingress)
+@apidoc.apidoc.add_app_template_global
+def swagger_static(filename):
+    """Return relative path to swagger static files for Ingress compatibility.
+    Since docs are at /docs/ and assets at /swaggerui/, we need ../swaggerui/
+    """
+    return f"../swaggerui/{filename}"
+
 api = Api(
     app,
     version=VERSION,
@@ -280,6 +286,63 @@ api = Api(
     },
     security='basicAuth'
 )
+
+# Custom documentation view with relative specs_url for Ingress compatibility
+@api.documentation
+def custom_ui():
+    """Custom Swagger UI with relative paths for HA Ingress support."""
+    from flask import render_template_string
+    return render_template_string('''<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ title }}</title>
+    <link media="screen" rel="stylesheet" type="text/css" href="../swaggerui/droid-sans.css">
+    <link media="screen" rel="stylesheet" type="text/css" href="../swaggerui/swagger-ui.css">
+    <link rel="icon" type="image/png" href="../swaggerui/favicon-32x32.png" sizes="32x32">
+    <link rel="icon" type="image/png" href="../swaggerui/favicon-16x16.png" sizes="16x16">
+    <style>
+        html { box-sizing: border-box; overflow-y: scroll; }
+        *, *:before, *:after { box-sizing: inherit; }
+        body { margin:0; background: #fafafa; }
+    </style>
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="../swaggerui/swagger-ui-bundle.js"></script>
+    <script src="../swaggerui/swagger-ui-standalone-preset.js"></script>
+    <script>
+        window.onload = function() {
+            // Detect if running under Ingress by checking URL path
+            const currentPath = window.location.pathname;
+            const ingressMatch = currentPath.match(/^(\/api\/hassio_ingress\/[^\/]+)/);
+            const ingressBasePath = ingressMatch ? ingressMatch[1] : '';
+
+            const ui = SwaggerUIBundle({
+                url: "../swagger.json",
+                dom_id: '#swagger-ui',
+                presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset.slice(1)],
+                plugins: [SwaggerUIBundle.plugins.DownloadUrl],
+                displayOperationId: false,
+                displayRequestDuration: false,
+                docExpansion: "none",
+                // Intercept requests and prepend Ingress path if needed
+                requestInterceptor: function(req) {
+                    if (ingressBasePath && req.url) {
+                        // Check if URL is relative or needs Ingress prefix
+                        const url = new URL(req.url, window.location.origin);
+                        if (!url.pathname.startsWith(ingressBasePath)) {
+                            url.pathname = ingressBasePath + url.pathname;
+                            req.url = url.toString();
+                        }
+                    }
+                    return req;
+                }
+            });
+            window.ui = ui;
+        }
+    </script>
+</body>
+</html>''', title=api.title)
 
 auth = HTTPBasicAuth()
 
@@ -605,16 +668,34 @@ class Reset(Resource):
         mqtt_publisher.track_gammu_operation("Reset", machine.Reset, False)
         return {"status": 200, "message": "Reset done"}, 200
 
+def get_external_port():
+    """Get the external port from HA Supervisor API."""
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            'http://supervisor/addons/self/info',
+            headers={'Authorization': f'Bearer {os.environ.get("SUPERVISOR_TOKEN", "")}'}
+        )
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode()).get('data', {})
+            network = data.get('network', {})
+            if network and '5000/tcp' in network:
+                return network['5000/tcp']
+    except Exception:
+        pass
+    return 5000  # fallback to internal port
+
 if __name__ == '__main__':
-    print(f"🚀 SMS Gammu Gateway v{VERSION} started successfully!")
-    print(f"📱 Device: {device_path}")
-    print(f"🌐 API available on port {port}")
-    print(f"🏠 Web UI: http://localhost:{port}/")
-    print(f"🔒 SSL: {'Enabled' if ssl else 'Disabled'}")
-    
+    external_port = get_external_port()
+    logging.info(f"🚀 SMS Gammu Gateway v{VERSION} started successfully!")
+    logging.info(f"📱 Device: {device_path}")
+    logging.info(f"🌐 API available on port {external_port}")
+    logging.info(f"🏠 Web UI: http://localhost:{external_port}/")
+    logging.info(f"🔒 SSL: {'Enabled' if ssl else 'Disabled'}")
+
     # MQTT info
     if config.get('mqtt_enabled', False):
-        print(f"📡 MQTT: Enabled -> {config.get('mqtt_host')}:{config.get('mqtt_port')}")
+        logging.info(f"📡 MQTT: Enabled -> {config.get('mqtt_host')}:{config.get('mqtt_port')}")
         
         # Wait a moment for MQTT connection, then publish initial states
         import time
@@ -626,24 +707,16 @@ if __name__ == '__main__':
         
         # Start call monitoring via Gammu callbacks (real-time detection)
         if config.get('missed_calls_monitoring_enabled', False):
-            if mqtt_publisher.start_callback_monitoring(machine):
-                print(f"📞 Call Monitoring: Enabled (real-time via callbacks)")
-            else:
-                print(f"📞 Call Monitoring: Callbacks not supported by modem")
-        else:
-            print(f"📞 Call Monitoring: Disabled in configuration")
+            mqtt_publisher.start_callback_monitoring(machine)
 
         # Start SMS monitoring if enabled
         if config.get('sms_monitoring_enabled', True):
             check_interval = config.get('sms_check_interval', 60)
             mqtt_publisher.start_sms_monitoring(machine, check_interval=check_interval)
-            print(f"📱 SMS Monitoring: Enabled (check every {check_interval}s)")
-        else:
-            print(f"📱 SMS Monitoring: Disabled")
     else:
-        print(f"📡 MQTT: Disabled")
-    
-    print(f"✅ Ready to send/receive SMS messages")
+        logging.info(f"📡 MQTT: Disabled")
+
+    logging.info(f"✅ Ready to send/receive SMS messages")
 
     try:
         if ssl:

@@ -76,7 +76,6 @@ This add-on provides a complete SMS gateway solution for Home Assistant, replaci
 |--------|---------|-------------|
 | `device_path` | `/dev/ttyUSB0` | Path to your GSM modem device (see Device Path Options below) |
 | `pin` | `""` | SIM card PIN (leave empty if no PIN) |
-| `port` | `5000` | API port |
 | `ssl` | `false` | Enable HTTPS |
 | `username` | `admin` | API username |
 | `password` | `password` | API password (change this!) |
@@ -132,7 +131,6 @@ device_path: "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0"
 # device_path: "/dev/ttyUSB0"
 
 pin: ""
-port: 5000
 ssl: false
 username: "admin"
 password: "your_secure_password"
@@ -266,6 +264,8 @@ automation:
 
 ### REST API Examples
 
+> **Note:** Port 5000 is the default. You can change it in Home Assistant add-on Network settings.
+
 ```bash
 # Normal SMS
 curl -X POST http://192.168.1.x:5000/sms \
@@ -290,7 +290,9 @@ curl -X POST http://192.168.1.x:5000/sms \
 ## 🔧 API Documentation
 
 ### Swagger UI
-Access full API documentation at: `http://your-ha-ip:5000/docs/`
+Access full API documentation via:
+- **Ingress** (recommended): Click "Open Web UI" in Home Assistant add-on panel, then click "Open Swagger API Documentation"
+- **Direct access**: `http://your-ha-ip:PORT/docs/` (PORT is configurable in Network settings)
 
 ![Swagger UI Documentation](https://raw.githubusercontent.com/pavelve/home-assistant-addons/main/sms-gammu-gateway/images/swagger-ui.png)
 
