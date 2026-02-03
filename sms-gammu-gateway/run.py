@@ -240,8 +240,7 @@ def home():
                 Version: {VERSION}
             </div>
             
-            <a href="http://''' + request.host.split(':')[0] + ''':5000/docs/" 
-               class="swagger-link" target="_blank">
+            <a href="docs/" class="swagger-link">
                 📋 Open Swagger API Documentation
             </a>
             
