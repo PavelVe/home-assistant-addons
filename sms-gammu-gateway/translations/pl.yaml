@@ -50,3 +50,6 @@ configuration:
   missed_calls_monitoring_enabled:
     name: Włącz monitorowanie połączeń
     description: Wykrywanie połączeń w czasie rzeczywistym przez callbacki Gammu - wykrywa połączenia przychodzące i nieodebrane (działa z SIM800L i większością modemów)
+  incoming_call_auto_reset_seconds:
+    name: Auto-reset timeout połączenia przychodzącego
+    description: Automatycznie resetuj stan połączenia przychodzącego po tym czasie (rozwiązanie zapasowe dla modemów, które nie wysyłają zdarzeń zakończenia połączenia). Timer restartuje się przy każdym zdarzeniu RING. Ustaw między 10-300 sekund.

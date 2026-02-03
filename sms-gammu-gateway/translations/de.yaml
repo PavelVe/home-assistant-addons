@@ -50,3 +50,6 @@ configuration:
   missed_calls_monitoring_enabled:
     name: Anrufüberwachung aktivieren
     description: Echtzeit-Anruferkennung über Gammu-Callbacks - erkennt eingehende und verpasste Anrufe (funktioniert mit SIM800L und den meisten Modems)
+  incoming_call_auto_reset_seconds:
+    name: Auto-Reset Timeout für eingehende Anrufe
+    description: Eingehenden Anrufstatus nach dieser Zeit automatisch zurücksetzen (Fallback für Modems, die keine Anrufende-Ereignisse senden). Timer wird bei jedem RING-Ereignis neu gestartet. Zwischen 10-300 Sekunden einstellen.

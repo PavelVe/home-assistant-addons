@@ -50,3 +50,6 @@ configuration:
   missed_calls_monitoring_enabled:
     name: Oproepbewaking inschakelen
     description: Realtime oproepdetectie via Gammu-callbacks - detecteert inkomende en gemiste oproepen (werkt met SIM800L en de meeste modems)
+  incoming_call_auto_reset_seconds:
+    name: Auto-reset timeout voor inkomende oproepen
+    description: Automatisch inkomende oproepstatus resetten na deze tijd (fallback voor modems die geen oproep-einde gebeurtenissen verzenden). Timer herstart bij elke RING gebeurtenis. Stel in tussen 10-300 seconden.

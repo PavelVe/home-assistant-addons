@@ -50,3 +50,6 @@ configuration:
   missed_calls_monitoring_enabled:
     name: Povoliť monitoring hovorov
     description: Real-time detekcia hovorov pomocou Gammu callbackov - detekuje prichádzajúce a zmeškané hovory (funguje na SIM800L a väčšine modemov)
+  incoming_call_auto_reset_seconds:
+    name: Auto-reset prichádzajúceho hovoru
+    description: Automaticky resetovať stav prichádzajúceho hovoru po uplynutí tohto času (záloha pre modemy, ktoré neposielajú event ukončenia hovoru). Timer sa reštartuje pri každom RING evente. Nastavte medzi 10-300 sekúnd.

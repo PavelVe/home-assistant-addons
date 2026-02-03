@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.2] – 2026-02-03
+
+### Fixed
+
+* **Incoming call stuck ON** - Auto-reset timeout for modems that don't send CallEnd events
+* **CallEnd without number** - Single queued call now removed correctly even without phone number
+
+### Added
+
+* `incoming_call_auto_reset_seconds` config option (10-300s, default: 60s)
+* Call queue support (up to 5 simultaneous calls)
+* Timer restarts on each RING event
+* New attributes: `queue_size`, `queue_full`, `auto_reset`
+
 ## [1.6.1] – 2026-02-03
 
 ### Fixed

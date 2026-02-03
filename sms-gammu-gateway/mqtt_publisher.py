@@ -169,8 +169,10 @@ class MQTTPublisher:
 
         # Call monitoring (real-time via Gammu callbacks)
         self.call_monitoring_enabled = False
-        self.current_call = None  # {'number': str, 'ring_start': datetime, 'ring_count': int}
+        self.call_queue = []  # [{'number': str, 'ring_start': datetime, 'ring_count': int}, ...]
+        self.MAX_CALL_QUEUE_SIZE = 5  # Maximum number of concurrent calls in queue
         self._read_device_thread = None
+        self._call_auto_reset_timer = None  # Timer for auto-resetting incoming call state
 
         # SMS callback (faster delivery, polling as fallback)
         self.sms_callback_enabled = False
@@ -1125,21 +1127,21 @@ class MQTTPublisher:
         if not self.connected:
             return
 
-        if is_ringing and self.current_call:
+        if is_ringing and self.call_queue:
+            # Použij poslední hovor ve frontě pro zobrazení
+            last_call = self.call_queue[-1]
             payload = {
                 "state": "ON",
-                "Number": self.current_call['number'],
-                "ring_start": self.current_call['ring_start'].isoformat(),
-                "ring_count": self.current_call['ring_count']
+                "Number": last_call['number'],
+                "ring_start": last_call['ring_start'].isoformat(),
+                "ring_count": last_call['ring_count'],
+                "queue_size": len(self.call_queue)
             }
         else:
             payload = {"state": "OFF"}
 
         topic = f"{self.topic_prefix}/incoming_call/state"
         self.client.publish(topic, json.dumps(payload), retain=False)
-
-        if is_ringing and self.current_call:
-            logger.info(f"📞 RING #{self.current_call['ring_count']} from {self.current_call['number']}")
 
     def _handle_gammu_event(self, sm, event_type, data):
         """
@@ -1160,51 +1162,143 @@ class MQTTPublisher:
             logger.error(f"Error in Gammu callback: {e}")
 
     def _handle_call_event(self, call_data):
-        """Zpracování události hovoru."""
+        """Zpracování události hovoru s podporou fronty až 5 hovorů."""
         status = call_data.get('Status', '')
-        number = call_data.get('Number', '')
+        number = call_data.get('Number', '') or 'Unknown'
 
         logger.debug(f"📞 Call event: status={status}, number={number}")
 
         if status == 'IncomingCall':
-            if self.current_call is None:
-                # Nový hovor - začátek zvonění
-                self.current_call = {
-                    'number': number if number else 'Unknown',
+            # Najdi existující hovor podle čísla
+            existing = next((c for c in self.call_queue if c['number'] == number), None)
+
+            if existing:
+                # Pokračující zvonění (RING) - inkrementuj ring_count
+                existing['ring_count'] += 1
+                logger.info(f"📞 RING #{existing['ring_count']} from {number}")
+            else:
+                # Nový hovor
+                if len(self.call_queue) >= self.MAX_CALL_QUEUE_SIZE:
+                    # Fronta plná - publikuj nejstarší jako missed
+                    oldest = self.call_queue.pop(0)
+                    self._publish_missed_call_from_queue(oldest, queue_full=True)
+                    logger.info(f"📞 Queue full, evicting oldest call from {oldest['number']}")
+
+                new_call = {
+                    'number': number,
                     'ring_start': datetime.now(),
                     'ring_count': 1
                 }
-                logger.info(f"📞 Incoming call from {self.current_call['number']}")
-            else:
-                # Pokračující zvonění (RING)
-                self.current_call['ring_count'] += 1
+                self.call_queue.append(new_call)
+                logger.info(f"📞 Incoming call from {number}")
+                logger.info(f"📞 RING #1 from {number}")
 
+            # Restart timer při KAŽDÉM RING eventu (prodlouží timeout)
+            self._start_call_auto_reset_timer()
             self.publish_incoming_call_state(True)
 
         elif status in ['CallRemoteEnd', 'CallLocalEnd']:
-            # Hovor ukončen (volající zavěsil nebo my)
-            if self.current_call:
-                ring_end = datetime.now()
-                duration = (ring_end - self.current_call['ring_start']).total_seconds()
+            # Hovor ukončen - najdi hovor podle čísla
+            call = None
 
-                # Publikuj zmeškaný hovor
-                self.publish_missed_call({
-                    'Number': self.current_call['number'],
-                    'ring_start': self.current_call['ring_start'].isoformat(),
-                    'ring_end': ring_end.isoformat(),
-                    'ring_duration_seconds': int(duration),
-                    'ring_count': self.current_call['ring_count']
-                })
+            if number and number != 'Unknown':
+                # Máme číslo - hledej podle něj
+                call = next((c for c in self.call_queue if c['number'] == number), None)
 
-                self.current_call = None
+            if not call and len(self.call_queue) == 1:
+                # Nemáme číslo (nebo nenalezeno), ale je jen 1 hovor - odeber ho
+                call = self.call_queue[0]
+                logger.info(f"📞 CallEnd without number, removing only queued call from {call['number']}")
+            elif not call and len(self.call_queue) > 1:
+                # Více hovorů a nevíme který - loguj warning
+                logger.warning(f"📞 CallEnd without number, but {len(self.call_queue)} calls in queue - cannot determine which to remove")
 
-            self.publish_incoming_call_state(False)
+            if call:
+                self.call_queue.remove(call)
+                self._publish_missed_call_from_queue(call)
+                logger.info(f"📞 Call ended from {call['number']} (rang {call['ring_count']} times)")
+
+            # Pokud je fronta prázdná, resetuj stav
+            if not self.call_queue:
+                self._cancel_call_auto_reset_timer()
+                self.publish_incoming_call_state(False)
+            else:
+                # Aktualizuj binary sensor na poslední číslo ve frontě
+                self.publish_incoming_call_state(True)
 
         elif status == 'CallStart':
-            # Hovor byl přijat - není zmeškaný, jen resetuj stav
-            logger.info("📞 Call answered (not missed)")
-            self.current_call = None
-            self.publish_incoming_call_state(False)
+            # Hovor byl přijat - není zmeškaný, odeber z fronty
+            call = None
+
+            if number and number != 'Unknown':
+                call = next((c for c in self.call_queue if c['number'] == number), None)
+
+            if not call and len(self.call_queue) == 1:
+                # Nemáme číslo, ale je jen 1 hovor - odeber ho
+                call = self.call_queue[0]
+                logger.info(f"📞 CallStart without number, removing only queued call from {call['number']}")
+
+            if call:
+                self.call_queue.remove(call)
+                logger.info(f"📞 Call answered from {call['number']} (not missed)")
+
+            if not self.call_queue:
+                self._cancel_call_auto_reset_timer()
+                self.publish_incoming_call_state(False)
+            else:
+                self.publish_incoming_call_state(True)
+
+    def _publish_missed_call_from_queue(self, call: dict, queue_full: bool = False, auto_reset: bool = False):
+        """Publikuj zmeškaný hovor z fronty."""
+        ring_end = datetime.now()
+        duration = (ring_end - call['ring_start']).total_seconds()
+
+        missed_data = {
+            'Number': call['number'],
+            'ring_start': call['ring_start'].isoformat(),
+            'ring_end': ring_end.isoformat(),
+            'ring_duration_seconds': int(duration),
+            'ring_count': call['ring_count']
+        }
+
+        if queue_full:
+            missed_data['queue_full'] = True
+        if auto_reset:
+            missed_data['auto_reset'] = True
+
+        self.publish_missed_call(missed_data)
+
+    def _start_call_auto_reset_timer(self):
+        """Start timer to auto-reset incoming call state (fallback for modems that don't send CallEnd events)."""
+        self._cancel_call_auto_reset_timer()
+
+        timeout = self.config.get('incoming_call_auto_reset_seconds', 60)
+        logger.debug(f"📞 Starting call auto-reset timer: {timeout}s")
+
+        self._call_auto_reset_timer = threading.Timer(
+            timeout,
+            self._auto_reset_incoming_call
+        )
+        self._call_auto_reset_timer.start()
+
+    def _cancel_call_auto_reset_timer(self):
+        """Cancel the auto-reset timer if running."""
+        if self._call_auto_reset_timer:
+            self._call_auto_reset_timer.cancel()
+            self._call_auto_reset_timer = None
+
+    def _auto_reset_incoming_call(self):
+        """Auto-reset: publikuj všechny hovory ve frontě jako missed."""
+        if self.call_queue:
+            logger.info(f"📞 Auto-reset timeout - publishing {len(self.call_queue)} missed call(s)")
+
+            for call in self.call_queue:
+                self._publish_missed_call_from_queue(call, auto_reset=True)
+
+            self.call_queue = []
+
+        self.publish_incoming_call_state(False)
+        self._call_auto_reset_timer = None
 
     def _handle_sms_event(self, sms_data):
         """Zpracování události SMS - trigger pro rychlejší zpracování."""

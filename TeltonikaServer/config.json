@@ -2,7 +2,7 @@
   "name": "Teltonika Server",
   "version": "1.9.1",
   "slug": "teltonika_server",
-  "description": "Professional GPS tracking server with Teltonika AVL protocol, IMEI security, automatic data parsing, dual CSV export (RAW + parsed GPS/accelerometer), and comprehensive web interface with parsed data visualization",
+  "description": "TCP server for receiving AVL data from Teltonika GPS devices. Supports Codec8/8E protocol, IMEI filtering, log rotation, and web interface for log viewing.",
   "startup": "services",
   "arch": ["amd64", "i386", "aarch64", "armv7", "armhf"],
   "boot": "auto",

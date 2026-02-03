@@ -50,3 +50,6 @@ configuration:
   missed_calls_monitoring_enabled:
     name: Activar monitoreo de llamadas
     description: Detección de llamadas en tiempo real mediante callbacks de Gammu - detecta llamadas entrantes y perdidas (funciona con SIM800L y la mayoría de módems)
+  incoming_call_auto_reset_seconds:
+    name: Timeout de reinicio automático de llamadas
+    description: Reiniciar automáticamente el estado de llamada entrante después de este tiempo (respaldo para módems que no envían eventos de fin de llamada). El temporizador se reinicia en cada evento RING. Establecer entre 10-300 segundos.
