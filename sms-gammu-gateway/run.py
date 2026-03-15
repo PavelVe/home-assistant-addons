@@ -739,13 +739,14 @@ class CallHangup(Resource):
             return {"status": 403, "message": "Voice calls are disabled in addon configuration"}, 403
 
         try:
-            mqtt_publisher.track_gammu_operation("CancelCall", machine.CancelCall, 0, True)
+            # Direct call without track_gammu_operation - hangup is urgent,
+            # must not wait for gammu_lock/timeout during active call
+            machine.CancelCall(0, True)
             mqtt_publisher.cancel_auto_hangup_timer()
             mqtt_publisher.publish_outgoing_call_state(False)
             return {"status": 200, "message": "All calls terminated"}, 200
-        except TimeoutError as e:
-            api.abort(503, f"Modem timeout: {str(e)}")
         except Exception as e:
+            mqtt_publisher.publish_outgoing_call_state(False)
             api.abort(503, f"Failed to hangup: {str(e)}")
 
 def get_external_port():

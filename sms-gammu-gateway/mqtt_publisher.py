@@ -461,11 +461,16 @@ class MQTTPublisher:
                 logger.info("📞 MQTT hangup request")
                 try:
                     if self.gammu_machine:
-                        self.track_gammu_operation("CancelCall", self.gammu_machine.CancelCall, 0, True)
+                        # Direct call without track_gammu_operation - hangup is urgent,
+                        # must not wait for gammu_lock/timeout during active call
+                        self.gammu_machine.CancelCall(0, True)
                         self.cancel_auto_hangup_timer()
                         self.publish_outgoing_call_state(False)
+                        logger.info("📞 Call terminated successfully")
                 except Exception as e:
                     logger.error(f"Failed to hangup: {e}")
+                    # Still update state even if CancelCall failed
+                    self.publish_outgoing_call_state(False)
 
         except Exception as e:
             logger.error(f"Error processing MQTT message on topic {msg.topic}: {e}")
@@ -1328,10 +1333,12 @@ class MQTTPublisher:
         def _auto_hangup():
             logger.info(f"📞 Auto-hangup timer fired after {duration}s")
             try:
-                self.track_gammu_operation("CancelCall", gammu_machine.CancelCall, 0, True)
-                self.publish_outgoing_call_state(False)
+                # Direct call without track_gammu_operation - urgent operation
+                gammu_machine.CancelCall(0, True)
+                logger.info("📞 Auto-hangup: call terminated")
             except Exception as e:
                 logger.error(f"Auto-hangup failed: {e}")
+            self.publish_outgoing_call_state(False)
             self._auto_hangup_timer = None
 
         self._auto_hangup_timer = threading.Timer(duration, _auto_hangup)
