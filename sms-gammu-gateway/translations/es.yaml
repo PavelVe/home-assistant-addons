@@ -53,3 +53,6 @@ configuration:
   incoming_call_auto_reset_seconds:
     name: Timeout de reinicio automático de llamadas
     description: Reiniciar automáticamente el estado de llamada entrante después de este tiempo (respaldo para módems que no envían eventos de fin de llamada). El temporizador se reinicia en cada evento RING. Establecer entre 10-300 segundos.
+  voice_call_enabled:
+    name: Activar llamadas de voz
+    description: Activar soporte de llamadas de voz - marcar números y colgar a través de API REST y botones MQTT

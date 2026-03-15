@@ -53,3 +53,6 @@ configuration:
   incoming_call_auto_reset_seconds:
     name: Auto-Reset Timeout für eingehende Anrufe
     description: Eingehenden Anrufstatus nach dieser Zeit automatisch zurücksetzen (Fallback für Modems, die keine Anrufende-Ereignisse senden). Timer wird bei jedem RING-Ereignis neu gestartet. Zwischen 10-300 Sekunden einstellen.
+  voice_call_enabled:
+    name: Sprachanrufe aktivieren
+    description: Sprachanruf-Unterstützung aktivieren - Nummern wählen und auflegen über REST API und MQTT-Buttons

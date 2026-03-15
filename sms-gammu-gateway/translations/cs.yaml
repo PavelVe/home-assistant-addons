@@ -53,3 +53,6 @@ configuration:
   incoming_call_auto_reset_seconds:
     name: Auto-reset příchozího hovoru
     description: Automaticky resetovat stav příchozího hovoru po uplynutí tohoto času (záloha pro modemy, které neposílají event ukončení hovoru). Timer se restartuje při každém RING eventu. Nastavte mezi 10-300 sekund.
+  voice_call_enabled:
+    name: Povolit hlasové hovory
+    description: Povolí podporu hlasových hovorů - vytáčení čísel a zavěšení přes REST API a MQTT tlačítka

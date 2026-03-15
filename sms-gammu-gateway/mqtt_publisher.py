@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 # SMS counter persistence file
 SMS_COUNTER_FILE = '/data/sms_counter.json'
+SMS_LAST_PROCESSED_FILE = '/data/sms_last_processed.json'
 
 def detect_unicode_needed(text: str) -> bool:
     """Detect if text contains non-ASCII characters requiring Unicode encoding"""
@@ -77,6 +78,57 @@ class SMSCounter:
     def get_count(self):
         """Get current count"""
         return self.sent_count
+
+class SMSProcessedTracker:
+    """Tracks last processed SMS timestamp to prevent re-triggering after restart"""
+
+    def __init__(self, state_file: str = SMS_LAST_PROCESSED_FILE):
+        self.state_file = state_file
+        self.last_processed_time = None
+        self._load()
+
+    def _load(self):
+        try:
+            if os.path.exists(self.state_file):
+                with open(self.state_file, 'r') as f:
+                    data = json.load(f)
+                    ts = data.get('last_processed_time')
+                    if ts:
+                        self.last_processed_time = datetime.strptime(ts, '%Y-%m-%d %H:%M:%S')
+                        logger.info(f"📱 Loaded last processed SMS time: {ts}")
+        except Exception as e:
+            logger.error(f"Error loading SMS processed state: {e}")
+
+    def update(self, sms_datetime=None):
+        """Update last processed time (now or from SMS datetime)"""
+        self.last_processed_time = sms_datetime or datetime.now()
+        self._save()
+
+    def _save(self):
+        try:
+            os.makedirs(os.path.dirname(self.state_file), exist_ok=True)
+            ts = self.last_processed_time.strftime('%Y-%m-%d %H:%M:%S') if self.last_processed_time else None
+            with open(self.state_file, 'w') as f:
+                json.dump({'last_processed_time': ts}, f)
+        except Exception as e:
+            logger.error(f"Error saving SMS processed state: {e}")
+
+    def is_new_sms(self, sms_data):
+        """Check if SMS is newer than last processed time"""
+        if self.last_processed_time is None:
+            return True
+        sms_dt = sms_data.get('DateTime') or sms_data.get('Date')
+        if not sms_dt:
+            return True
+        if isinstance(sms_dt, str):
+            try:
+                sms_dt = datetime.strptime(sms_dt, '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                return True
+        if isinstance(sms_dt, datetime):
+            return sms_dt > self.last_processed_time
+        return True
+
 
 class DeviceConnectivityTracker:
     """Tracks USB GSM device connectivity status based on gammu communication"""
@@ -166,6 +218,7 @@ class MQTTPublisher:
         self.current_message_text = ""  # Current message text from text input
         self.device_tracker = DeviceConnectivityTracker()  # USB device connectivity tracking
         self.sms_counter = SMSCounter()  # SMS counter with persistence
+        self.sms_processed = SMSProcessedTracker()  # Prevents SMS re-triggering after restart
 
         # Call monitoring (real-time via Gammu callbacks)
         self.call_monitoring_enabled = False
@@ -173,6 +226,10 @@ class MQTTPublisher:
         self.MAX_CALL_QUEUE_SIZE = 5  # Maximum number of concurrent calls in queue
         self._read_device_thread = None
         self._call_auto_reset_timer = None  # Timer for auto-resetting incoming call state
+
+        # Outgoing call state
+        self._auto_hangup_timer = None
+        self._outgoing_call_active = False
 
         # SMS callback (faster delivery, polling as fallback)
         self.sms_callback_enabled = False
@@ -211,7 +268,7 @@ class MQTTPublisher:
                 logger.info(f"MQTT: Client ID: {client_id}, Using authentication with username: '{username}'")
             else:
                 logger.info(f"MQTT: Client ID: {client_id}, Connecting without authentication (local broker mode)")
-            
+
             # Set callbacks
             self.client.on_connect = self._on_connect
             self.client.on_disconnect = self._on_disconnect
@@ -223,16 +280,46 @@ class MQTTPublisher:
             self.client.will_set(self.availability_topic, "offline", qos=1, retain=True)
             logger.info("📡 MQTT Last Will set: all entities will be unavailable if connection lost")
 
+            # Automatic reconnect after initial connection (paho-mqtt built-in)
+            self.client.reconnect_delay_set(min_delay=1, max_delay=30)
+
             # Connect to broker
             host = self.config.get('mqtt_host', 'core-mosquitto')
             port = self.config.get('mqtt_port', 1883)
 
             logger.info(f"Connecting to MQTT broker: {host}:{port}")
-            self.client.connect(host, port, 60)
-            self.client.loop_start()
-            
+            try:
+                self.client.connect(host, port, 60)
+                self.client.loop_start()
+            except Exception as e:
+                logger.warning(f"📡 MQTT broker not available at startup: {e}")
+                logger.info("📡 Starting background retry thread...")
+                self._connect_with_retry(host, port)
+
         except Exception as e:
             logger.error(f"Failed to setup MQTT client: {e}")
+
+    def _connect_with_retry(self, host, port):
+        """Background thread that retries MQTT connection until successful"""
+        def _retry_loop():
+            retry_interval = 5
+            max_attempts = 60  # 5 minut
+            for attempt in range(1, max_attempts + 1):
+                if self.disconnecting:
+                    return
+                time.sleep(retry_interval)
+                try:
+                    self.client.connect(host, port, 60)
+                    self.client.loop_start()
+                    logger.info(f"📡 MQTT connected after {attempt} retries")
+                    return
+                except Exception:
+                    if attempt % 6 == 0:  # Log každých 30s
+                        logger.warning(f"📡 MQTT broker still unavailable (attempt {attempt}/{max_attempts})")
+            logger.error("📡 MQTT connection failed after 5 minutes of retrying")
+
+        thread = threading.Thread(target=_retry_loop, daemon=True, name="mqtt-retry")
+        thread.start()
     
     def _on_connect(self, client, userdata, flags, rc):
         """Callback for MQTT connection"""
@@ -270,6 +357,16 @@ class MQTTPublisher:
             client.subscribe(delete_all_sms_topic)
             logger.info(f"Subscribed to delete all SMS topic: {delete_all_sms_topic}")
 
+            # Subscribe to voice call button topics
+            if self.config.get('voice_call_enabled', False):
+                dial_topic = f"{self.topic_prefix}/dial_button"
+                client.subscribe(dial_topic)
+                logger.info(f"Subscribed to dial call topic: {dial_topic}")
+
+                hangup_topic = f"{self.topic_prefix}/hangup_button"
+                client.subscribe(hangup_topic)
+                logger.info(f"Subscribed to hangup call topic: {hangup_topic}")
+
             # Subscribe to text input topics
             phone_topic = f"{self.topic_prefix}/phone_number/set"
             message_topic = f"{self.topic_prefix}/message_text/set"
@@ -287,7 +384,10 @@ class MQTTPublisher:
     def _on_disconnect(self, client, userdata, rc):
         """Callback for MQTT disconnection"""
         self.connected = False
-        logger.warning("Disconnected from MQTT broker")
+        if rc == 0:
+            logger.info("📡 Disconnected from MQTT broker (clean)")
+        else:
+            logger.warning(f"📡 Unexpected MQTT disconnect (rc={rc}), auto-reconnecting...")
     
     def _on_publish(self, client, userdata, mid):
         """Callback for published messages"""
@@ -343,6 +443,29 @@ class MQTTPublisher:
                 # Message text state received (sync with HA)
                 self.current_message_text = payload
                 logger.info(f"Message text synced from HA state: {payload}")
+
+            # Voice call buttons
+            elif topic == f"{self.topic_prefix}/dial_button":
+                number = self.current_phone_number
+                if number and self.gammu_machine:
+                    logger.info(f"📞 MQTT dial request: {number}")
+                    try:
+                        self.track_gammu_operation("DialVoice", self.gammu_machine.DialVoice, number)
+                        self.publish_outgoing_call_state(True, number)
+                    except Exception as e:
+                        logger.error(f"Failed to dial {number}: {e}")
+                else:
+                    logger.warning("📞 Dial request but no phone number set or gammu not available")
+
+            elif topic == f"{self.topic_prefix}/hangup_button":
+                logger.info("📞 MQTT hangup request")
+                try:
+                    if self.gammu_machine:
+                        self.track_gammu_operation("CancelCall", self.gammu_machine.CancelCall, 0, True)
+                        self.cancel_auto_hangup_timer()
+                        self.publish_outgoing_call_state(False)
+                except Exception as e:
+                    logger.error(f"Failed to hangup: {e}")
 
         except Exception as e:
             logger.error(f"Error processing MQTT message on topic {msg.topic}: {e}")
@@ -988,6 +1111,45 @@ class MQTTPublisher:
         if missed_call_config:
             discoveries.append(("homeassistant/sensor/sms_gateway_last_missed_call/config", missed_call_config))
 
+        # Voice call entities (if enabled)
+        if self.config.get('voice_call_enabled', False):
+            # Dial button
+            dial_button_config = {
+                "name": "Dial Call",
+                "unique_id": "sms_gateway_dial_call",
+                "command_topic": f"{self.topic_prefix}/dial_button",
+                "icon": "mdi:phone-outgoing",
+                "device": DEVICE_CONFIG,
+                **AVAILABILITY_CONFIG
+            }
+            discoveries.append(("homeassistant/button/sms_gateway_dial_call/config", dial_button_config))
+
+            # Hangup button
+            hangup_button_config = {
+                "name": "Hangup Call",
+                "unique_id": "sms_gateway_hangup_call",
+                "command_topic": f"{self.topic_prefix}/hangup_button",
+                "icon": "mdi:phone-hangup",
+                "device": DEVICE_CONFIG,
+                **AVAILABILITY_CONFIG
+            }
+            discoveries.append(("homeassistant/button/sms_gateway_hangup_call/config", hangup_button_config))
+
+            # Outgoing call binary sensor
+            outgoing_call_config = {
+                "name": "Outgoing Call",
+                "unique_id": "sms_gateway_outgoing_call",
+                "state_topic": f"{self.topic_prefix}/outgoing_call/state",
+                "payload_on": "ON",
+                "payload_off": "OFF",
+                "value_template": "{{ value_json.state }}",
+                "json_attributes_topic": f"{self.topic_prefix}/outgoing_call/state",
+                "icon": "mdi:phone-outgoing",
+                "device": DEVICE_CONFIG,
+                **AVAILABILITY_CONFIG
+            }
+            discoveries.append(("homeassistant/binary_sensor/sms_gateway_outgoing_call/config", outgoing_call_config))
+
         for topic, config in discoveries:
             self.client.publish(topic, json.dumps(config), retain=True, qos=1)
         
@@ -1142,6 +1304,45 @@ class MQTTPublisher:
 
         topic = f"{self.topic_prefix}/incoming_call/state"
         self.client.publish(topic, json.dumps(payload), retain=False)
+
+    def publish_outgoing_call_state(self, is_active: bool, number: str = None):
+        """Publish outgoing call state to MQTT"""
+        if not self.connected:
+            return
+
+        if is_active:
+            payload = {"state": "ON", "Number": number or ""}
+            self._outgoing_call_active = True
+        else:
+            payload = {"state": "OFF"}
+            self._outgoing_call_active = False
+
+        topic = f"{self.topic_prefix}/outgoing_call/state"
+        self.client.publish(topic, json.dumps(payload), retain=False)
+        logger.info(f"📞 Outgoing call state: {'ON' if is_active else 'OFF'}" + (f" ({number})" if number else ""))
+
+    def start_auto_hangup_timer(self, gammu_machine, duration: int):
+        """Start timer to automatically hangup after duration seconds"""
+        self.cancel_auto_hangup_timer()
+
+        def _auto_hangup():
+            logger.info(f"📞 Auto-hangup timer fired after {duration}s")
+            try:
+                self.track_gammu_operation("CancelCall", gammu_machine.CancelCall, 0, True)
+                self.publish_outgoing_call_state(False)
+            except Exception as e:
+                logger.error(f"Auto-hangup failed: {e}")
+            self._auto_hangup_timer = None
+
+        self._auto_hangup_timer = threading.Timer(duration, _auto_hangup)
+        self._auto_hangup_timer.start()
+        logger.info(f"📞 Auto-hangup timer set: {duration}s")
+
+    def cancel_auto_hangup_timer(self):
+        """Cancel the auto-hangup timer if running"""
+        if self._auto_hangup_timer:
+            self._auto_hangup_timer.cancel()
+            self._auto_hangup_timer = None
 
     def _handle_gammu_event(self, sm, event_type, data):
         """
@@ -1366,6 +1567,7 @@ class MQTTPublisher:
 
             if processed_count > 0:
                 logger.info(f"📨 Callback processed {processed_count} new SMS")
+                self.sms_processed.update()
 
                 # Aktualizuj kapacitu
                 try:
@@ -1627,21 +1829,28 @@ class MQTTPublisher:
 
                 try:
                     if first_run:
-                        # On first run, publish only unread SMS
+                        # On first run, publish only unread SMS newer than last processed time
                         logger.info(f"📱 Initial SMS check: {current_count} total SMS on SIM")
                         unread_count = 0
+                        skipped_count = 0
                         for sms in all_sms:
                             if sms.get('State') == 'UnRead':
-                                sms_copy = sms.copy()
-                                sms_copy.pop("Locations", None)
-                                self.publish_sms_received(sms_copy)
-                                unread_count += 1
+                                if self.sms_processed.is_new_sms(sms):
+                                    sms_copy = sms.copy()
+                                    sms_copy.pop("Locations", None)
+                                    self.publish_sms_received(sms_copy)
+                                    unread_count += 1
+                                else:
+                                    skipped_count += 1
 
                         if unread_count > 0:
                             logger.info(f"📱 Published {unread_count} unread SMS messages")
-                        else:
+                        if skipped_count > 0:
+                            logger.info(f"📱 Skipped {skipped_count} already processed SMS")
+                        if unread_count == 0 and skipped_count == 0:
                             logger.info(f"📱 No unread SMS messages to publish")
 
+                        self.sms_processed.update()
                         last_sms_count = current_count
                         first_run = False
                     elif current_count > last_sms_count:
@@ -1668,6 +1877,8 @@ class MQTTPublisher:
                                         deleted_count += 1
                                     except Exception as e:
                                         logger.error(f"Error auto-deleting SMS: {e}")
+
+                        self.sms_processed.update()
 
                         # If we auto-deleted any SMS, update capacity and get new count
                         if auto_delete and deleted_count > 0:

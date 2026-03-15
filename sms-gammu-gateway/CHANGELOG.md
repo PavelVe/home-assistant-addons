@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.4] – 2026-03-15
+
+### Fixed
+
+* **MQTT reconnection logic** - Auto-retry if MQTT broker is unavailable at startup, automatic reconnect on disconnect (#37)
+* **SMS re-trigger after restart** - Persist last processed timestamp, skip already published SMS on addon restart/update (#34)
+
+### Added
+
+* **Voice call support** - Dial numbers and hangup via REST API (`POST /calls/dial`, `POST /calls/hangup`) and MQTT buttons with auto-hangup timer (#33)
+
 ## [1.6.3] – 2026-02-08
 
 ### Fixed

@@ -420,9 +420,20 @@ sms_capacity_response = api.model('SMS Capacity', {
     'TemplatesUsed': fields.Integer(description='SMS templates used', example=0)
 })
 
+call_dial_model = api.model('Call Dial', {
+    'number': fields.String(required=True, description='Phone number to dial (international format)', example='+420123456789'),
+    'duration': fields.Integer(required=False, description='Auto-hangup after N seconds (0 = no limit)', default=0, example=30)
+})
+
+call_response = api.model('Call Response', {
+    'status': fields.Integer(description='HTTP status code', example=200),
+    'message': fields.String(description='Call action result', example='Call initiated')
+})
+
 # API Namespaces
 ns_sms = api.namespace('sms', description='SMS operations (requires authentication)')
 ns_status = api.namespace('status', description='Device status and information (public)')
+ns_calls = api.namespace('calls', description='Voice call operations (requires authentication)')
 
 @ns_sms.route('')
 @ns_sms.doc('sms_operations')
@@ -676,6 +687,66 @@ class Reset(Resource):
         """Reset GSM modem (useful for stuck connections)"""
         mqtt_publisher.track_gammu_operation("Reset", machine.Reset, False)
         return {"status": 200, "message": "Reset done"}, 200
+
+@ns_calls.route('/dial')
+@ns_calls.doc('call_operations')
+class CallDial(Resource):
+    @ns_calls.doc('dial_voice_call')
+    @ns_calls.expect(call_dial_model)
+    @ns_calls.marshal_with(call_response)
+    @ns_calls.doc(security='basicAuth')
+    @auth.login_required
+    def post(self):
+        """Dial a voice call to a phone number"""
+        if not config.get('voice_call_enabled', False):
+            return {"status": 403, "message": "Voice calls are disabled in addon configuration"}, 403
+
+        parser = reqparse.RequestParser()
+        parser.add_argument('number', required=True, help='Phone number to dial')
+        parser.add_argument('duration', type=int, required=False, default=0, help='Auto-hangup after N seconds')
+        args = parser.parse_args()
+
+        number = args.get('number', '').strip()
+        duration = args.get('duration', 0) or 0
+
+        if not number:
+            return {"status": 400, "message": "Missing required field: number"}, 400
+
+        try:
+            mqtt_publisher.track_gammu_operation("DialVoice", machine.DialVoice, number)
+            mqtt_publisher.publish_outgoing_call_state(True, number)
+
+            if duration > 0:
+                mqtt_publisher.start_auto_hangup_timer(machine, duration)
+
+            return {"status": 200, "message": f"Call initiated to {number}" + (f", auto-hangup in {duration}s" if duration > 0 else "")}, 200
+        except TimeoutError as e:
+            api.abort(503, f"Modem timeout: {str(e)}")
+        except Exception as e:
+            api.abort(503, f"Failed to dial: {str(e)}")
+
+
+@ns_calls.route('/hangup')
+@ns_calls.doc('hangup_operations')
+class CallHangup(Resource):
+    @ns_calls.doc('hangup_call')
+    @ns_calls.marshal_with(call_response)
+    @ns_calls.doc(security='basicAuth')
+    @auth.login_required
+    def post(self):
+        """Hang up all active calls"""
+        if not config.get('voice_call_enabled', False):
+            return {"status": 403, "message": "Voice calls are disabled in addon configuration"}, 403
+
+        try:
+            mqtt_publisher.track_gammu_operation("CancelCall", machine.CancelCall, 0, True)
+            mqtt_publisher.cancel_auto_hangup_timer()
+            mqtt_publisher.publish_outgoing_call_state(False)
+            return {"status": 200, "message": "All calls terminated"}, 200
+        except TimeoutError as e:
+            api.abort(503, f"Modem timeout: {str(e)}")
+        except Exception as e:
+            api.abort(503, f"Failed to hangup: {str(e)}")
 
 def get_external_port():
     """Get the external port from HA Supervisor API."""

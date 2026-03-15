@@ -53,3 +53,6 @@ configuration:
   incoming_call_auto_reset_seconds:
     name: Incoming Call Auto-reset Timeout
     description: Automatically reset incoming call state after this many seconds (fallback for modems that don't send call-end events). Timer restarts on each RING event. Set between 10-300 seconds.
+  voice_call_enabled:
+    name: Enable Voice Calls
+    description: Enable voice call support - dial numbers and hangup via REST API and MQTT buttons

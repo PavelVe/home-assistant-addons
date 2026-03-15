@@ -53,3 +53,6 @@ configuration:
   incoming_call_auto_reset_seconds:
     name: Auto-reset timeout voor inkomende oproepen
     description: Automatisch inkomende oproepstatus resetten na deze tijd (fallback voor modems die geen oproep-einde gebeurtenissen verzenden). Timer herstart bij elke RING gebeurtenis. Stel in tussen 10-300 seconden.
+  voice_call_enabled:
+    name: Spraakoproepen inschakelen
+    description: Spraakoproep-ondersteuning inschakelen - nummers bellen en ophangen via REST API en MQTT-knoppen

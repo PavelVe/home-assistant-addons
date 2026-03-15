@@ -1,6 +1,6 @@
 {
   "name": "SMS Gammu Gateway",
-  "version": "1.6.3",
+  "version": "1.6.4",
   "slug": "sms_gammu_gateway",
   "description": "SMS gateway for USB GSM modems (SIM800L, Huawei, Quectel, etc.) with REST API, MQTT integration and Home Assistant auto-discovery. Send/receive SMS, Flash SMS support, signal and network monitoring, incoming and missed call detection, SMS cost tracking. Web UI with Swagger documentation.",
   "startup": "services",
@@ -27,7 +27,8 @@
     "sms_cost_currency": "CZK",
     "auto_delete_read_sms": true,
     "missed_calls_monitoring_enabled": true,
-    "incoming_call_auto_reset_seconds": 60
+    "incoming_call_auto_reset_seconds": 60,
+    "voice_call_enabled": false
   },
   "schema": {
     "device_path": "str",
@@ -47,7 +48,8 @@
     "sms_cost_currency": "str",
     "auto_delete_read_sms": "bool",
     "missed_calls_monitoring_enabled": "bool",
-    "incoming_call_auto_reset_seconds": "int(10,300)"
+    "incoming_call_auto_reset_seconds": "int(10,300)",
+    "voice_call_enabled": "bool"
   },
   "ingress": true,
   "ingress_port": 5000,
