@@ -231,6 +231,7 @@ class MQTTPublisher:
         self._auto_hangup_timer = None
         self._outgoing_call_active = False
         self._call_active_until = None  # Timestamp when call should be over
+        self._post_call_recovery_until = None  # Post-call recovery period (ReadDevice only)
 
         # SMS callback (faster delivery, polling as fallback)
         self.sms_callback_enabled = False
@@ -449,10 +450,10 @@ class MQTTPublisher:
                     logger.info(f"📞 MQTT dial request: {number}")
                     try:
                         # Set call active BEFORE DialVoice to prevent ReadDevice race condition
-                        self._call_active_until = time.time() + 50  # 40s network timeout + 10s buffer
+                        self._call_active_until = time.time() + 40  # 35s call + 5s buffer
                         self.track_gammu_operation("DialVoice", self.gammu_machine.DialVoice, number)
                         self.publish_outgoing_call_state(True, number)
-                        logger.info("📞 Call active, gammu operations paused for ~50s")
+                        logger.info("📞 Call active, gammu operations paused for ~40s")
                     except Exception as e:
                         self._call_active_until = None  # Clear on failure
                         logger.error(f"Failed to dial {number}: {e}")
@@ -1588,6 +1589,12 @@ class MQTTPublisher:
                             gammu_machine.ReadDevice()
                     except Exception as e:
                         logger.debug(f"ReadDevice: {e}")
+
+                    # Post-call recovery: ReadDevice flushes NO CARRIER URC from modem buffer
+                    if self._post_call_recovery_until and time.time() >= self._post_call_recovery_until:
+                        self._post_call_recovery_until = None
+                        logger.info("✅ Post-call recovery complete, resuming normal operations")
+
                     time.sleep(1)
                 logger.info("🔄 ReadDevice loop stopped")
 
@@ -1606,11 +1613,21 @@ class MQTTPublisher:
         if self._call_active_until and time.time() < self._call_active_until:
             return True
         if self._call_active_until and time.time() >= self._call_active_until:
-            # Call timeout expired, auto-clear state
+            # Call timeout expired, start post-call recovery
             self._call_active_until = None
             self._outgoing_call_active = False
             self.publish_outgoing_call_state(False)
-            logger.info("📞 Call period ended, resuming normal operations")
+            # Recovery: 5s for ReadDevice to flush NO CARRIER URC from modem buffer
+            self._post_call_recovery_until = time.time() + 5
+            logger.info("📞 Call period ended, starting 5s post-call recovery...")
+        return False
+
+    def _is_post_call_recovery(self):
+        """Check if post-call recovery is in progress (only ReadDevice allowed)"""
+        if self._post_call_recovery_until and time.time() < self._post_call_recovery_until:
+            return True
+        if self._post_call_recovery_until and time.time() >= self._post_call_recovery_until:
+            self._post_call_recovery_until = None
         return False
 
     def track_gammu_operation(self, operation_name, gammu_function, *args, **kwargs):
@@ -1619,6 +1636,10 @@ class MQTTPublisher:
         if self._is_call_active() and operation_name != "DialVoice":
             logger.debug(f"⏸️ Skipping '{operation_name}' - outgoing call in progress")
             raise Exception("Outgoing call in progress, modem busy")
+        # Skip operations during post-call recovery (ReadDevice flushes NO CARRIER URC)
+        if self._is_post_call_recovery() and operation_name != "Reset":
+            logger.debug(f"⏸️ Skipping '{operation_name}' - post-call recovery in progress")
+            raise Exception("Post-call recovery in progress, modem busy")
         # Use lock to serialize all Gammu operations (prevent race conditions on serial port)
         with self.gammu_lock:
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:

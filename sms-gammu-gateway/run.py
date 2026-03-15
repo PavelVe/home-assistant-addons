@@ -714,9 +714,9 @@ class CallDial(Resource):
 
         try:
             import time as time_mod
-            call_duration = duration if duration > 0 else 45
+            call_duration = duration if duration > 0 else 35
             # Set call active BEFORE DialVoice to prevent ReadDevice race condition
-            mqtt_publisher._call_active_until = time_mod.time() + call_duration + 10
+            mqtt_publisher._call_active_until = time_mod.time() + call_duration + 5
             mqtt_publisher.track_gammu_operation("DialVoice", machine.DialVoice, number)
             mqtt_publisher.publish_outgoing_call_state(True, number)
 
