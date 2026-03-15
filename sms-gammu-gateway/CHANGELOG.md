@@ -11,7 +11,12 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-* **Voice call support** - Dial numbers via REST API (`POST /calls/dial`) and MQTT button. Call rings ~40s then ends automatically. Modem operations paused during call (#33)
+* **Voice call support (Experimental)** - Dial numbers via REST API (`POST /calls/dial`) and MQTT button (#33)
+  * Call rings ~35s then ends via network timeout (hangup not supported on SIM800C/SIM800L)
+  * All modem operations paused during call to prevent serial port conflicts
+  * Automatic post-call recovery: Gammu re-initialization (`Terminate` + `Init`) to restore modem after `NO CARRIER` URC corrupts internal state (~2 min total downtime)
+  * Outgoing Call binary sensor (ON/OFF) with number attribute
+  * Disabled by default (`voice_call_enabled: false`) — recommended for alarm/notification use only
 
 ## [1.6.3] – 2026-02-08
 

@@ -20,7 +20,7 @@ This add-on provides a complete SMS gateway solution for Home Assistant, replaci
 - **Send SMS** via REST API, MQTT, or Home Assistant UI
 - **Flash SMS Support** ⚡ - Send urgent alerts that display on screen without saving to inbox (Class 0)
 - **Real-time Call Monitoring** 📞 - Detect incoming calls and missed calls in real-time via Gammu callbacks
-- **Voice Calls** 📞 - Dial numbers via REST API or MQTT button (call rings ~40s, useful for alarm/notification)
+- **Voice Calls** 📞 *(Experimental)* - Dial numbers via REST API or MQTT button (call rings ~35s, ~2 min recovery after call)
 - **Receive SMS** with automatic MQTT notifications
 - **Text Input Fields** directly in Home Assistant device
 - **Smart Buttons** for easy SMS sending from UI (normal + flash)
@@ -123,7 +123,7 @@ ls -la /dev/serial/by-id/
 | `auto_delete_read_sms` | `true` | Automatically delete SMS after reading |
 | `missed_calls_monitoring_enabled` | `false` | Enable incoming/missed call detection (requires modem support) |
 | `incoming_call_auto_reset_seconds` | `60` | Auto-reset incoming call state after N seconds (10-300) |
-| `voice_call_enabled` | `true` | Enable voice call support (dial via REST API and MQTT) |
+| `voice_call_enabled` | `false` | **Experimental:** Enable voice calls (see limitations below) |
 
 ### Example Configuration
 
@@ -267,10 +267,12 @@ automation:
             Duration: {{ state_attr('sensor.sms_gateway_last_missed_call', 'ring_duration_seconds') }}s
 ```
 
-### Voice Call Automations
+### Voice Call Automations (Experimental)
+
+> **Warning:** Voice call support is experimental. After each call, the modem needs ~2 minutes to recover. During this time, SMS and other modem operations are unavailable. See details below.
 
 ```yaml
-# Doorbell alert - dial number (rings ~40s then ends automatically)
+# Doorbell alert - dial number (rings ~35s then ends automatically)
 automation:
   - alias: "Doorbell Call Alert"
     trigger:
@@ -296,12 +298,23 @@ rest_command:
     payload: '{"number": "{{ number }}"}'
 ```
 
-**Voice Call Notes:**
-- Call rings until the other party answers/rejects or network timeout (~40s)
-- Hangup is not supported — most GSM modems (SIM800C, etc.) don't respond to CancelCall during active outgoing calls
-- During the call, all modem operations (SMS monitoring, signal checks) are automatically paused to avoid timeouts
-- After the call ends, normal operations resume automatically
-- Ideal for alarm/notification use cases where you just need to ring someone
+**Voice Call — How It Works:**
+
+1. Addon sends `ATD` command to modem via Gammu `DialVoice()`
+2. Phone rings for ~35 seconds (controlled by GSM network, not the addon)
+3. Call ends automatically when the other party answers/rejects or network times out
+4. **All modem operations are paused** during the call (SMS monitoring, signal checks, ReadDevice) to prevent serial port conflicts
+5. After the call, a **~2 minute recovery** is needed:
+   - 5 seconds: ReadDevice flushes `NO CARRIER` response from modem buffer
+   - ~85 seconds: Gammu connection is re-initialized (`Terminate()` + `Init()`) and callbacks are re-registered
+6. Normal operations resume automatically after recovery
+
+**Limitations:**
+- **Hangup is not supported** — GSM modems (SIM800C, SIM800L, etc.) don't respond to Gammu's `CancelCall` command during active voice calls (40s timeout, no effect). This is a known Gammu/modem limitation.
+- **~2 min modem downtime** after each call — voice calls leave the modem in an inconsistent state that requires full Gammu re-initialization. During this time, SMS sending/receiving is temporarily unavailable.
+- **No call duration control** — the call duration is determined by the GSM network timeout (~35s), not the addon
+- **Disabled by default** — enable in addon config (`voice_call_enabled: true`)
+- **Recommended for alarm/notification use only** — e.g., doorbell rings, security alerts where you just need to ring someone's phone
 
 ### REST API Examples
 

@@ -54,5 +54,5 @@ configuration:
     name: Auto-reset timeout połączenia przychodzącego
     description: Automatycznie resetuj stan połączenia przychodzącego po tym czasie (rozwiązanie zapasowe dla modemów, które nie wysyłają zdarzeń zakończenia połączenia). Timer restartuje się przy każdym zdarzeniu RING. Ustaw między 10-300 sekund.
   voice_call_enabled:
-    name: Włącz połączenia głosowe
-    description: Włącz obsługę połączeń głosowych - wybieranie numerów i rozłączanie przez REST API i przyciski MQTT
+    name: Połączenia głosowe (Eksperymentalne)
+    description: "Eksperymentalne: Wybieranie numerów przez REST API lub przycisk MQTT. Połączenie dzwoni ~35s, potem kończy się przez timeout sieci. Modem jest niedostępny ~2 min po każdym połączeniu (automatyczne odzyskiwanie). Rozłączanie nieobsługiwane. Zalecane tylko do alarmów/powiadomień."

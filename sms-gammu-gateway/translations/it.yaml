@@ -54,5 +54,5 @@ configuration:
     name: Timeout auto-reset chiamate in arrivo
     description: Reimposta automaticamente lo stato della chiamata in arrivo dopo questo tempo (fallback per modem che non inviano eventi di fine chiamata). Il timer si riavvia ad ogni evento RING. Impostare tra 10-300 secondi.
   voice_call_enabled:
-    name: Abilita chiamate vocali
-    description: Abilita il supporto per le chiamate vocali - comporre numeri e riagganciare tramite API REST e pulsanti MQTT
+    name: Chiamate vocali (Sperimentale)
+    description: "Sperimentale: Comporre numeri tramite API REST o pulsante MQTT. La chiamata squilla ~35s poi termina per timeout di rete. Il modem non è disponibile ~2 min dopo ogni chiamata (recupero automatico). Riagganciare non supportato. Consigliato solo per allarme/notifiche."

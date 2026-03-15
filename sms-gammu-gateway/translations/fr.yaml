@@ -54,5 +54,5 @@ configuration:
     name: Timeout de réinitialisation automatique des appels
     description: Réinitialiser automatiquement l'état d'appel entrant après ce délai (solution de secours pour les modems qui n'envoient pas d'événements de fin d'appel). Le minuteur redémarre à chaque événement RING. Définir entre 10-300 secondes.
   voice_call_enabled:
-    name: Activer les appels vocaux
-    description: Activer le support des appels vocaux - composer des numéros et raccrocher via l'API REST et les boutons MQTT
+    name: Appels vocaux (Expérimental)
+    description: "Expérimental : Composer des numéros via API REST ou bouton MQTT. L'appel sonne ~35s puis se termine par timeout réseau. Le modem est indisponible ~2 min après chaque appel (récupération automatique). Raccrocher non supporté. Recommandé uniquement pour alarme/notification."

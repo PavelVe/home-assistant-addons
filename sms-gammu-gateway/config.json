@@ -28,7 +28,7 @@
     "auto_delete_read_sms": true,
     "missed_calls_monitoring_enabled": true,
     "incoming_call_auto_reset_seconds": 60,
-    "voice_call_enabled": true
+    "voice_call_enabled": false
   },
   "schema": {
     "device_path": "str",

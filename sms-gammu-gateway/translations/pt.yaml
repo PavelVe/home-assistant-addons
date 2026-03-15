@@ -54,5 +54,5 @@ configuration:
     name: Timeout de reset automático de chamadas
     description: Redefinir automaticamente o estado de chamada recebida após este tempo (fallback para modems que não enviam eventos de fim de chamada). O temporizador reinicia a cada evento RING. Definir entre 10-300 segundos.
   voice_call_enabled:
-    name: Ativar chamadas de voz
-    description: Ativar suporte a chamadas de voz - discar números e desligar via API REST e botões MQTT
+    name: Chamadas de voz (Experimental)
+    description: "Experimental: Discar números via API REST ou botão MQTT. A chamada toca ~35s e termina por timeout de rede. O modem fica indisponível ~2 min após cada chamada (recuperação automática). Desligar não suportado. Recomendado apenas para alarme/notificação."
