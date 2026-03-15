@@ -35,12 +35,21 @@ This addon receives AVL data from Teltonika GPS devices over TCP and logs it wit
 ![Supports armv7 Architecture][armv7-shield]
 ![Supports i386 Architecture][i386-shield]
 
-REST API SMS Gateway using python-gammu for USB GSM modems (SIM800L, Huawei E1750, etc.). Send and receive SMS messages via REST API with authentication.
+REST API SMS Gateway using python-gammu for USB GSM modems (SIM800L, Huawei, Quectel, etc.). Send and receive SMS messages via REST API with MQTT integration and Home Assistant auto-discovery.
 
+### [MiniDLNA](./minidlna-server)
+
+![Supports aarch64 Architecture][aarch64-shield]
+![Supports amd64 Architecture][amd64-shield]
+![Supports armhf Architecture][armhf-shield]
+![Supports armv7 Architecture][armv7-shield]
+![Supports i386 Architecture][i386-shield]
+
+DLNA/UPnP media server (ReadyMedia) for streaming audio, video and photos to network devices (Smart TVs, media players, game consoles, etc.).
 
 [aarch64-shield]: https://img.shields.io/badge/aarch64-yes-green.svg
 [amd64-shield]: https://img.shields.io/badge/amd64-yes-green.svg
-[armhf-shield]: https://img.shields.io/badge/armhf-no-red.svg
+[armhf-shield]: https://img.shields.io/badge/armhf-yes-green.svg
 [armv7-shield]: https://img.shields.io/badge/armv7-yes-green.svg
-[i386-shield]: https://img.shields.io/badge/i386-no-red.svg
+[i386-shield]: https://img.shields.io/badge/i386-yes-green.svg
 

@@ -95,6 +95,9 @@ Configure your Teltonika devices to send data to:
 - **Protocol**: TCP
 - **Codec**: Codec8 or Codec8 Extended
 
+For detailed AVL protocol specification, see the official Teltonika documentation:
+- **Codec Reference**: https://wiki.teltonika-gps.com/view/Codec
+
 ### Monitoring
 - **Web Interface**: Access via Home Assistant Ingress
 - **IMEI Registry**: Available in `/share/teltonika_logs/imei_registry.json`

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.3] – 2026-02-08
+
+### Fixed
+
+* **Mobile scrolling in Android app** - Added viewport meta tag and improved CSS for proper scrolling in Home Assistant Android/iOS companion apps (#35)
+
 ## [1.6.2] – 2026-02-03
 
 ### Fixed

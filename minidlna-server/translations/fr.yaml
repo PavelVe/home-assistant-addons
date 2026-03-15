@@ -1,0 +1,31 @@
+configuration:
+  media_dirs:
+    name: Répertoires médias
+    description: "Liste des répertoires médias avec préfixe de type. Format : [TYPE,]CHEMIN où TYPE est A(udio), V(idéo), P(hotos) ou combinaisons (AV, AVP, etc.)"
+  friendly_name:
+    name: Nom d'affichage
+    description: Nom du serveur visible pour les clients DLNA sur votre réseau
+  inotify:
+    name: Activer inotify
+    description: Détecter automatiquement les fichiers nouveaux/modifiés/supprimés via les notifications du système de fichiers
+  notify_interval:
+    name: Intervalle de notification
+    description: Intervalle de notification SSDP en secondes (fréquence d'annonce du serveur sur le réseau)
+  strict_dlna:
+    name: DLNA strict
+    description: Respecter strictement les standards DLNA (peut réduire la compatibilité avec certains clients)
+  enable_subtitles:
+    name: Activer les sous-titres
+    description: Activer la prise en charge des sous-titres pour les fichiers vidéo
+  log_level:
+    name: Niveau de log
+    description: "Niveau de verbosité des logs MiniDLNA : off, fatal, error, warn, info, debug"
+  wide_links:
+    name: Liens étendus
+    description: Autoriser les liens symboliques pointant en dehors des répertoires médias définis
+  root_container:
+    name: Conteneur racine
+    description: "Conteneur racine lors de la navigation : . (répertoire), B (musique), M (musique), V (vidéo), P (images)"
+  force_rescan:
+    name: Forcer le re-scan
+    description: Supprimer la base de données des médias et effectuer un scan complet au prochain démarrage

@@ -1,0 +1,31 @@
+configuration:
+  media_dirs:
+    name: Mediamappen
+    description: "Lijst van mediamappen met type-prefix. Formaat: [TYPE,]PAD waarbij TYPE A(udio), V(ideo), P(ictures) of combinaties (AV, AVP, etc.) is"
+  friendly_name:
+    name: Weergavenaam
+    description: Servernaam zichtbaar voor DLNA-clients op uw netwerk
+  inotify:
+    name: inotify inschakelen
+    description: Automatisch nieuwe/gewijzigde/verwijderde bestanden detecteren via bestandssysteemmeldingen
+  notify_interval:
+    name: Meldingsinterval
+    description: SSDP-meldingsinterval in seconden (hoe vaak de server zich op het netwerk aankondigt)
+  strict_dlna:
+    name: Strikt DLNA
+    description: Strikt voldoen aan DLNA-standaarden (kan compatibiliteit met sommige clients verminderen)
+  enable_subtitles:
+    name: Ondertitels inschakelen
+    description: Ondertitelondersteuning voor videobestanden inschakelen
+  log_level:
+    name: Logniveau
+    description: "MiniDLNA log-detailniveau: off, fatal, error, warn, info, debug"
+  wide_links:
+    name: Brede links
+    description: Symbolische links toestaan die buiten de gedefinieerde mediamappen verwijzen
+  root_container:
+    name: Hoofdcontainer
+    description: "Hoofdcontainer bij browsen: . (map), B (muziek), M (muziek), V (video), P (afbeeldingen)"
+  force_rescan:
+    name: Herscan forceren
+    description: Mediadatabase verwijderen en een volledige herscan uitvoeren bij de volgende start

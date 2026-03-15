@@ -1,0 +1,31 @@
+configuration:
+  media_dirs:
+    name: Directorios de medios
+    description: "Lista de directorios de medios con prefijo de tipo. Formato: [TIPO,]RUTA donde TIPO es A(udio), V(ideo), P(ictures) o combinaciones (AV, AVP, etc.)"
+  friendly_name:
+    name: Nombre visible
+    description: Nombre del servidor visible para los clientes DLNA en su red
+  inotify:
+    name: Activar inotify
+    description: Detectar automáticamente archivos nuevos/modificados/eliminados mediante notificaciones del sistema de archivos
+  notify_interval:
+    name: Intervalo de notificación
+    description: Intervalo de notificación SSDP en segundos (frecuencia con la que el servidor se anuncia en la red)
+  strict_dlna:
+    name: DLNA estricto
+    description: Cumplir estrictamente los estándares DLNA (puede reducir la compatibilidad con algunos clientes)
+  enable_subtitles:
+    name: Activar subtítulos
+    description: Activar soporte de subtítulos para archivos de video
+  log_level:
+    name: Nivel de log
+    description: "Nivel de verbosidad del log de MiniDLNA: off, fatal, error, warn, info, debug"
+  wide_links:
+    name: Enlaces amplios
+    description: Permitir enlaces simbólicos que apunten fuera de los directorios de medios definidos
+  root_container:
+    name: Contenedor raíz
+    description: "Contenedor raíz al navegar: . (directorio), B (música), M (música), V (video), P (imágenes)"
+  force_rescan:
+    name: Forzar re-escaneo
+    description: Eliminar la base de datos de medios y realizar un escaneo completo en el próximo inicio

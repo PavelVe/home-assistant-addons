@@ -1,0 +1,48 @@
+{
+  "name": "MiniDLNA",
+  "version": "1.0.0",
+  "slug": "minidlna_server",
+  "description": "DLNA/UPnP media server (ReadyMedia) for streaming audio, video and photos to network devices",
+  "startup": "services",
+  "boot": "auto",
+  "arch": ["amd64", "i386", "aarch64", "armv7", "armhf"],
+  "homeassistant": "2022.1.1",
+  "url": "https://github.com/PavelVe/home-assistant-addons/blob/main/minidlna-server/README.md",
+  "panel_icon": "mdi:dlna",
+  "ingress": true,
+  "ingress_port": 8200,
+  "host_network": true,
+  "init": false,
+  "map": ["media:ro", "share:ro"],
+  "privileged": ["NET_ADMIN"],
+  "ports": {
+    "8200/tcp": 8200
+  },
+  "ports_description": {
+    "8200/tcp": "MiniDLNA HTTP port (web UI + streaming)"
+  },
+  "options": {
+    "media_dirs": ["AV,/media"],
+    "friendly_name": "Home Assistant DLNA",
+    "inotify": true,
+    "notify_interval": 900,
+    "strict_dlna": false,
+    "enable_subtitles": true,
+    "log_level": "warn",
+    "wide_links": false,
+    "root_container": ".",
+    "force_rescan": false
+  },
+  "schema": {
+    "media_dirs": ["str"],
+    "friendly_name": "str",
+    "inotify": "bool",
+    "notify_interval": "int(60,86400)",
+    "strict_dlna": "bool",
+    "enable_subtitles": "bool",
+    "log_level": "list(off|fatal|error|warn|info|debug)",
+    "wide_links": "bool",
+    "root_container": "list(.|B|M|V|P)",
+    "force_rescan": "bool"
+  }
+}

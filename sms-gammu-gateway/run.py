@@ -178,13 +178,21 @@ def home():
     <head>
         <title>SMS Gammu Gateway</title>
         <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-            body { 
+            html {
+                height: 100%;
+                overflow-y: auto;
+            }
+            body {
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
                 margin: 0;
                 padding: 40px 20px;
                 background: #f5f5f5;
                 text-align: center;
+                min-height: 100%;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
             }
             .container {
                 max-width: 600px;
@@ -296,14 +304,15 @@ def custom_ui():
 <html>
 <head>
     <title>{{ title }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link media="screen" rel="stylesheet" type="text/css" href="../swaggerui/droid-sans.css">
     <link media="screen" rel="stylesheet" type="text/css" href="../swaggerui/swagger-ui.css">
     <link rel="icon" type="image/png" href="../swaggerui/favicon-32x32.png" sizes="32x32">
     <link rel="icon" type="image/png" href="../swaggerui/favicon-16x16.png" sizes="16x16">
     <style>
-        html { box-sizing: border-box; overflow-y: scroll; }
+        html { box-sizing: border-box; height: 100%; overflow-y: auto; }
         *, *:before, *:after { box-sizing: inherit; }
-        body { margin:0; background: #fafafa; }
+        body { margin: 0; background: #fafafa; min-height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     </style>
 </head>
 <body>

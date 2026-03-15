@@ -1,0 +1,31 @@
+configuration:
+  media_dirs:
+    name: Medienverzeichnisse
+    description: "Liste der Medienverzeichnisse mit Typ-Präfix. Format: [TYP,]PFAD wobei TYP A(udio), V(ideo), P(ictures) oder Kombinationen (AV, AVP, etc.) ist"
+  friendly_name:
+    name: Anzeigename
+    description: Servername, der für DLNA-Clients im Netzwerk sichtbar ist
+  inotify:
+    name: inotify aktivieren
+    description: Neue/geänderte/gelöschte Dateien automatisch über Dateisystem-Benachrichtigungen erkennen
+  notify_interval:
+    name: Benachrichtigungsintervall
+    description: SSDP-Benachrichtigungsintervall in Sekunden (wie oft sich der Server im Netzwerk ankündigt)
+  strict_dlna:
+    name: Striktes DLNA
+    description: DLNA-Standards strikt einhalten (kann die Kompatibilität mit einigen Clients verringern)
+  enable_subtitles:
+    name: Untertitel aktivieren
+    description: Untertitelunterstützung für Videodateien aktivieren
+  log_level:
+    name: Log-Level
+    description: "MiniDLNA Log-Detailstufe: off, fatal, error, warn, info, debug"
+  wide_links:
+    name: Weite Links
+    description: Symbolische Links erlauben, die außerhalb der definierten Medienverzeichnisse zeigen
+  root_container:
+    name: Stammcontainer
+    description: "Stammcontainer beim Durchsuchen: . (Verzeichnis), B (Musik), M (Musik), V (Video), P (Bilder)"
+  force_rescan:
+    name: Neuscan erzwingen
+    description: Mediendatenbank löschen und beim nächsten Start einen vollständigen Neuscan durchführen

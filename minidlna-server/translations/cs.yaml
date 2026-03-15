@@ -1,0 +1,31 @@
+configuration:
+  media_dirs:
+    name: Adresáře médií
+    description: "Seznam adresářů s médii s prefixem typu. Formát: [TYP,]CESTA kde TYP je A(udio), V(ideo), P(ictures) nebo kombinace (AV, AVP, atd.)"
+  friendly_name:
+    name: Zobrazovaný název
+    description: Název serveru viditelný pro DLNA klienty v síti
+  inotify:
+    name: Povolit inotify
+    description: Automaticky detekovat nové/změněné/smazané soubory pomocí systémových notifikací
+  notify_interval:
+    name: Interval oznámení
+    description: SSDP interval oznámení v sekundách (jak často se server ohlásí v síti)
+  strict_dlna:
+    name: Striktní DLNA
+    description: Striktně dodržovat DLNA standardy (může snížit kompatibilitu s některými klienty)
+  enable_subtitles:
+    name: Povolit titulky
+    description: Povolit podporu titulků pro video soubory
+  log_level:
+    name: Úroveň logování
+    description: "Úroveň podrobnosti logování MiniDLNA: off, fatal, error, warn, info, debug"
+  wide_links:
+    name: Široké odkazy
+    description: Povolit symbolické odkazy směřující mimo definované adresáře médií
+  root_container:
+    name: Kořenový kontejner
+    description: "Kořenový kontejner při procházení: . (adresář), B (hudba), M (hudba), V (video), P (obrázky)"
+  force_rescan:
+    name: Vynutit přeskenování
+    description: Smazat databázi médií a provést kompletní přeskenování při dalším startu (automaticky se resetuje po použití)

@@ -1,0 +1,31 @@
+configuration:
+  media_dirs:
+    name: Media Directories
+    description: "List of media directories with type prefix. Format: [TYPE,]PATH where TYPE is A(udio), V(ideo), P(ictures) or combinations (AV, AVP, etc.)"
+  friendly_name:
+    name: Friendly Name
+    description: Server name visible to DLNA clients on your network
+  inotify:
+    name: Enable inotify
+    description: Automatically detect new/changed/removed files using filesystem notifications
+  notify_interval:
+    name: Notify Interval
+    description: SSDP notify interval in seconds (how often the server announces itself on the network)
+  strict_dlna:
+    name: Strict DLNA
+    description: Strictly adhere to DLNA standards (may reduce compatibility with some clients)
+  enable_subtitles:
+    name: Enable Subtitles
+    description: Enable subtitle support for video files
+  log_level:
+    name: Log Level
+    description: "MiniDLNA log verbosity level: off, fatal, error, warn, info, debug"
+  wide_links:
+    name: Wide Links
+    description: Allow symlinks that point outside the defined media directories
+  root_container:
+    name: Root Container
+    description: "Root container when browsing: . (directory), B (music), M (music), V (video), P (pictures)"
+  force_rescan:
+    name: Force Rescan
+    description: Delete the media database and perform a full rescan on next start (automatically resets after use)

@@ -1,0 +1,59 @@
+name: Bug Report
+description: Report a bug or issue with one of the add-ons
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the form below with as much detail as possible.
+
+  - type: dropdown
+    id: addon
+    attributes:
+      label: Add-on
+      description: Which add-on is this bug report about?
+      options:
+        - TeltonikaServer
+        - SMS Gammu Gateway
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Describe the bug...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: If applicable, add logs to help explain your problem
+      render: shell
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Add-on Version
+      description: What version of the add-on are you running?
+      placeholder: e.g., 1.0.0
+    validations:
+      required: false

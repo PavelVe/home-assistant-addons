@@ -1,0 +1,38 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for one of the add-ons
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! Please describe your idea below.
+
+  - type: dropdown
+    id: addon
+    attributes:
+      label: Add-on
+      description: Which add-on is this feature request for?
+      options:
+        - TeltonikaServer
+        - SMS Gammu Gateway
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Feature Description
+      description: A clear and concise description of the feature you'd like to see
+      placeholder: Describe the feature...
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation / Use Case
+      description: Why would this feature be useful? What problem does it solve?
+      placeholder: Explain why this feature would be helpful...
+    validations:
+      required: false
