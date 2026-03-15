@@ -1590,10 +1590,26 @@ class MQTTPublisher:
                     except Exception as e:
                         logger.debug(f"ReadDevice: {e}")
 
-                    # Post-call recovery: ReadDevice flushes NO CARRIER URC from modem buffer
+                    # Post-call recovery: re-initialize gammu connection to clear modem state
                     if self._post_call_recovery_until and time.time() >= self._post_call_recovery_until:
                         self._post_call_recovery_until = None
-                        logger.info("✅ Post-call recovery complete, resuming normal operations")
+                        logger.info("🔄 Post-call recovery: re-initializing modem connection...")
+                        try:
+                            with self.gammu_lock:
+                                gammu_machine.Terminate()
+                                time.sleep(2)
+                                gammu_machine.Init()
+                            logger.info("✅ Modem connection re-initialized")
+                            # Re-register callbacks (lost after Terminate+Init)
+                            from support import setupCallbacks
+                            result = setupCallbacks(gammu_machine, self._handle_gammu_event)
+                            if result.get('calls'):
+                                logger.info("📞 Call callback: RE-ENABLED after recovery")
+                            if result.get('sms'):
+                                logger.info("📨 SMS callback: RE-ENABLED after recovery")
+                            logger.info("✅ Post-call recovery complete, resuming normal operations")
+                        except Exception as e:
+                            logger.warning(f"⚠️ Post-call recovery failed: {e}, resuming anyway")
 
                     time.sleep(1)
                 logger.info("🔄 ReadDevice loop stopped")
