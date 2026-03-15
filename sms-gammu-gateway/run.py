@@ -738,16 +738,9 @@ class CallHangup(Resource):
         if not config.get('voice_call_enabled', False):
             return {"status": 403, "message": "Voice calls are disabled in addon configuration"}, 403
 
-        try:
-            # Direct call without track_gammu_operation - hangup is urgent,
-            # must not wait for gammu_lock/timeout during active call
-            machine.CancelCall(0, True)
-            mqtt_publisher.cancel_auto_hangup_timer()
-            mqtt_publisher.publish_outgoing_call_state(False)
-            return {"status": 200, "message": "All calls terminated"}, 200
-        except Exception as e:
-            mqtt_publisher.publish_outgoing_call_state(False)
-            api.abort(503, f"Failed to hangup: {str(e)}")
+        mqtt_publisher._hangup_requested = True
+        mqtt_publisher.cancel_auto_hangup_timer()
+        return {"status": 200, "message": "Hangup requested"}, 200
 
 def get_external_port():
     """Get the external port from HA Supervisor API."""

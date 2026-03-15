@@ -230,6 +230,7 @@ class MQTTPublisher:
         # Outgoing call state
         self._auto_hangup_timer = None
         self._outgoing_call_active = False
+        self._hangup_requested = False  # Flag for ReadDevice loop to execute hangup
 
         # SMS callback (faster delivery, polling as fallback)
         self.sms_callback_enabled = False
@@ -459,18 +460,8 @@ class MQTTPublisher:
 
             elif topic == f"{self.topic_prefix}/hangup_button":
                 logger.info("📞 MQTT hangup request")
-                try:
-                    if self.gammu_machine:
-                        # Direct call without track_gammu_operation - hangup is urgent,
-                        # must not wait for gammu_lock/timeout during active call
-                        self.gammu_machine.CancelCall(0, True)
-                        self.cancel_auto_hangup_timer()
-                        self.publish_outgoing_call_state(False)
-                        logger.info("📞 Call terminated successfully")
-                except Exception as e:
-                    logger.error(f"Failed to hangup: {e}")
-                    # Still update state even if CancelCall failed
-                    self.publish_outgoing_call_state(False)
+                self._hangup_requested = True
+                self.cancel_auto_hangup_timer()
 
         except Exception as e:
             logger.error(f"Error processing MQTT message on topic {msg.topic}: {e}")
@@ -1332,13 +1323,7 @@ class MQTTPublisher:
 
         def _auto_hangup():
             logger.info(f"📞 Auto-hangup timer fired after {duration}s")
-            try:
-                # Direct call without track_gammu_operation - urgent operation
-                gammu_machine.CancelCall(0, True)
-                logger.info("📞 Auto-hangup: call terminated")
-            except Exception as e:
-                logger.error(f"Auto-hangup failed: {e}")
-            self.publish_outgoing_call_state(False)
+            self._hangup_requested = True
             self._auto_hangup_timer = None
 
         self._auto_hangup_timer = threading.Timer(duration, _auto_hangup)
@@ -1625,10 +1610,19 @@ class MQTTPublisher:
                 logger.info("🔄 ReadDevice loop started (1s interval)")
                 while self.connected and not self.disconnecting:
                     try:
-                        with self.gammu_lock:  # Použij sdílený lock
-                            gammu_machine.ReadDevice()
+                        with self.gammu_lock:
+                            # Check hangup flag before ReadDevice
+                            if self._hangup_requested:
+                                self._hangup_requested = False
+                                try:
+                                    gammu_machine.CancelCall(0, True)
+                                    logger.info("📞 Call terminated successfully (via ReadDevice loop)")
+                                except Exception as e:
+                                    logger.error(f"📞 CancelCall failed: {e}")
+                                self.publish_outgoing_call_state(False)
+                            else:
+                                gammu_machine.ReadDevice()
                     except Exception as e:
-                        # Normální chyba když běží jiná operace
                         logger.debug(f"ReadDevice: {e}")
                     time.sleep(1)
                 logger.info("🔄 ReadDevice loop stopped")
