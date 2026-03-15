@@ -716,7 +716,7 @@ class MQTTPublisher:
                             # Try different folder IDs (0=Inbox, 1=Outbox, 2=Sent, etc.)
                             for folder in [0, 1, 2]:
                                 try:
-                                    self.gammu_machine.DeleteSMS(folder, location)
+                                    self.track_gammu_operation("DeleteSMS", self.gammu_machine.DeleteSMS, folder, location)
                                     deleted_count += 1
                                     deleted_this_location = True
                                     logger.info(f"✅ Deleted SMS at folder={folder}, location={location}")
@@ -1576,6 +1576,9 @@ class MQTTPublisher:
                 logger.info("🔄 ReadDevice loop started (1s interval)")
                 while self.connected and not self.disconnecting:
                     try:
+                        if self._is_call_active():
+                            time.sleep(1)
+                            continue
                         with self.gammu_lock:
                             gammu_machine.ReadDevice()
                     except Exception as e:

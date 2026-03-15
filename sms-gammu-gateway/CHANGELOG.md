@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-* **Voice call support** - Dial numbers and hangup via REST API (`POST /calls/dial`, `POST /calls/hangup`) and MQTT buttons with auto-hangup timer (#33)
+* **Voice call support** - Dial numbers via REST API (`POST /calls/dial`) and MQTT button. Call rings ~40s then ends automatically. Modem operations paused during call (#33)
 
 ## [1.6.3] – 2026-02-08
 

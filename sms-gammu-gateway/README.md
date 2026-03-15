@@ -20,7 +20,7 @@ This add-on provides a complete SMS gateway solution for Home Assistant, replaci
 - **Send SMS** via REST API, MQTT, or Home Assistant UI
 - **Flash SMS Support** ⚡ - Send urgent alerts that display on screen without saving to inbox (Class 0)
 - **Real-time Call Monitoring** 📞 - Detect incoming calls and missed calls in real-time via Gammu callbacks
-- **Voice Calls** 📞 - Dial numbers and hangup via REST API or MQTT buttons with optional auto-hangup timer
+- **Voice Calls** 📞 - Dial numbers via REST API or MQTT button (call rings ~40s, useful for alarm/notification)
 - **Receive SMS** with automatic MQTT notifications
 - **Text Input Fields** directly in Home Assistant device
 - **Smart Buttons** for easy SMS sending from UI (normal + flash)
@@ -123,7 +123,7 @@ ls -la /dev/serial/by-id/
 | `auto_delete_read_sms` | `true` | Automatically delete SMS after reading |
 | `missed_calls_monitoring_enabled` | `false` | Enable incoming/missed call detection (requires modem support) |
 | `incoming_call_auto_reset_seconds` | `60` | Auto-reset incoming call state after N seconds (10-300) |
-| `voice_call_enabled` | `false` | Enable voice call support (dial/hangup via REST API and MQTT) |
+| `voice_call_enabled` | `true` | Enable voice call support (dial via REST API and MQTT) |
 
 ### Example Configuration
 
@@ -166,7 +166,6 @@ Enable MQTT in configuration and the add-on will automatically create:
   - State: caller phone number
   - Attributes: ring_start, ring_end, ring_duration_seconds, ring_count, processed_at
 - 📞 **Dial Call** button (if voice calls enabled) - dial the number from Phone Number field
-- 📞 **Hangup Call** button (if voice calls enabled) - terminate active call
 - 📞 **Outgoing Call** binary sensor (if voice calls enabled) - ON/OFF with number attribute
 
 All entities appear under device **"SMS Gateway"** in Home Assistant.
@@ -271,7 +270,7 @@ automation:
 ### Voice Call Automations
 
 ```yaml
-# Ring doorbell - dial number for 30 seconds then hangup
+# Doorbell alert - dial number (rings ~40s then ends automatically)
 automation:
   - alias: "Doorbell Call Alert"
     trigger:
@@ -282,7 +281,6 @@ automation:
       - service: rest_command.dial_call
         data:
           number: "+420123456789"
-          duration: 30
 ```
 
 To use `rest_command.dial_call`, add to `configuration.yaml`:
@@ -295,13 +293,15 @@ rest_command:
     content_type: "application/json"
     username: "admin"
     password: "your_password"
-    payload: '{"number": "{{ number }}", "duration": {{ duration | default(0) }}}'
-  hangup_call:
-    url: "http://localhost:5000/calls/hangup"
-    method: POST
-    username: "admin"
-    password: "your_password"
+    payload: '{"number": "{{ number }}"}'
 ```
+
+**Voice Call Notes:**
+- Call rings until the other party answers/rejects or network timeout (~40s)
+- Hangup is not supported — most GSM modems (SIM800C, etc.) don't respond to CancelCall during active outgoing calls
+- During the call, all modem operations (SMS monitoring, signal checks) are automatically paused to avoid timeouts
+- After the call ends, normal operations resume automatically
+- Ideal for alarm/notification use cases where you just need to ring someone
 
 ### REST API Examples
 
@@ -322,15 +322,11 @@ curl -X POST http://192.168.1.x:5000/sms \
 ```
 
 ```bash
-# Dial voice call (rings for 30 seconds then auto-hangup)
+# Dial voice call (rings ~40s then ends automatically)
 curl -X POST http://192.168.1.x:5000/calls/dial \
   -H "Content-Type: application/json" \
   -u admin:password \
-  -d '{"number": "+420123456789", "duration": 30}'
-
-# Hangup all active calls
-curl -X POST http://192.168.1.x:5000/calls/hangup \
-  -u admin:password
+  -d '{"number": "+420123456789"}'
 ```
 
 **Flash SMS Notes:**
@@ -358,7 +354,6 @@ Access full API documentation via:
 | GET | `/sms/{id}` | Get specific SMS | Yes |
 | DELETE | `/sms/{id}` | Delete SMS | Yes |
 | POST | `/calls/dial` | Dial voice call | Yes |
-| POST | `/calls/hangup` | Hang up all calls | Yes |
 | GET | `/status/signal` | Signal strength | No |
 | GET | `/status/network` | Network info | No |
 | GET | `/status/reset` | Reset modem | No |
