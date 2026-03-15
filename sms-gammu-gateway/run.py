@@ -713,13 +713,13 @@ class CallDial(Resource):
             return {"status": 400, "message": "Missing required field: number"}, 400
 
         try:
+            import time as time_mod
+            call_duration = duration if duration > 0 else 45
             mqtt_publisher.track_gammu_operation("DialVoice", machine.DialVoice, number)
+            mqtt_publisher._call_active_until = time_mod.time() + call_duration + 5
             mqtt_publisher.publish_outgoing_call_state(True, number)
 
-            if duration > 0:
-                mqtt_publisher.start_auto_hangup_timer(machine, duration)
-
-            return {"status": 200, "message": f"Call initiated to {number}" + (f", auto-hangup in {duration}s" if duration > 0 else "")}, 200
+            return {"status": 200, "message": f"Call initiated to {number}, operations paused for {call_duration}s"}, 200
         except TimeoutError as e:
             api.abort(503, f"Modem timeout: {str(e)}")
         except Exception as e:
@@ -738,9 +738,7 @@ class CallHangup(Resource):
         if not config.get('voice_call_enabled', False):
             return {"status": 403, "message": "Voice calls are disabled in addon configuration"}, 403
 
-        mqtt_publisher._hangup_requested = True
-        mqtt_publisher.cancel_auto_hangup_timer()
-        return {"status": 200, "message": "Hangup requested"}, 200
+        return {"status": 200, "message": "Hangup not supported on this modem. Call ends via network timeout (~40s)."}, 200
 
 def get_external_port():
     """Get the external port from HA Supervisor API."""

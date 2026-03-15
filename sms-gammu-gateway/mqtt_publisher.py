@@ -230,7 +230,7 @@ class MQTTPublisher:
         # Outgoing call state
         self._auto_hangup_timer = None
         self._outgoing_call_active = False
-        self._hangup_requested = False  # Flag for ReadDevice loop to execute hangup
+        self._call_active_until = None  # Timestamp when call should be over
 
         # SMS callback (faster delivery, polling as fallback)
         self.sms_callback_enabled = False
@@ -364,9 +364,6 @@ class MQTTPublisher:
                 client.subscribe(dial_topic)
                 logger.info(f"Subscribed to dial call topic: {dial_topic}")
 
-                hangup_topic = f"{self.topic_prefix}/hangup_button"
-                client.subscribe(hangup_topic)
-                logger.info(f"Subscribed to hangup call topic: {hangup_topic}")
 
             # Subscribe to text input topics
             phone_topic = f"{self.topic_prefix}/phone_number/set"
@@ -452,16 +449,14 @@ class MQTTPublisher:
                     logger.info(f"📞 MQTT dial request: {number}")
                     try:
                         self.track_gammu_operation("DialVoice", self.gammu_machine.DialVoice, number)
+                        self._call_active_until = time.time() + 45  # 40s network timeout + 5s buffer
                         self.publish_outgoing_call_state(True, number)
+                        logger.info("📞 Call active, gammu operations paused for 45s")
                     except Exception as e:
                         logger.error(f"Failed to dial {number}: {e}")
                 else:
                     logger.warning("📞 Dial request but no phone number set or gammu not available")
 
-            elif topic == f"{self.topic_prefix}/hangup_button":
-                logger.info("📞 MQTT hangup request")
-                self._hangup_requested = True
-                self.cancel_auto_hangup_timer()
 
         except Exception as e:
             logger.error(f"Error processing MQTT message on topic {msg.topic}: {e}")
@@ -1120,17 +1115,6 @@ class MQTTPublisher:
             }
             discoveries.append(("homeassistant/button/sms_gateway_dial_call/config", dial_button_config))
 
-            # Hangup button
-            hangup_button_config = {
-                "name": "Hangup Call",
-                "unique_id": "sms_gateway_hangup_call",
-                "command_topic": f"{self.topic_prefix}/hangup_button",
-                "icon": "mdi:phone-hangup",
-                "device": DEVICE_CONFIG,
-                **AVAILABILITY_CONFIG
-            }
-            discoveries.append(("homeassistant/button/sms_gateway_hangup_call/config", hangup_button_config))
-
             # Outgoing call binary sensor
             outgoing_call_config = {
                 "name": "Outgoing Call",
@@ -1317,24 +1301,6 @@ class MQTTPublisher:
         self.client.publish(topic, json.dumps(payload), retain=False)
         logger.info(f"📞 Outgoing call state: {'ON' if is_active else 'OFF'}" + (f" ({number})" if number else ""))
 
-    def start_auto_hangup_timer(self, gammu_machine, duration: int):
-        """Start timer to automatically hangup after duration seconds"""
-        self.cancel_auto_hangup_timer()
-
-        def _auto_hangup():
-            logger.info(f"📞 Auto-hangup timer fired after {duration}s")
-            self._hangup_requested = True
-            self._auto_hangup_timer = None
-
-        self._auto_hangup_timer = threading.Timer(duration, _auto_hangup)
-        self._auto_hangup_timer.start()
-        logger.info(f"📞 Auto-hangup timer set: {duration}s")
-
-    def cancel_auto_hangup_timer(self):
-        """Cancel the auto-hangup timer if running"""
-        if self._auto_hangup_timer:
-            self._auto_hangup_timer.cancel()
-            self._auto_hangup_timer = None
 
     def _handle_gammu_event(self, sm, event_type, data):
         """
@@ -1611,17 +1577,7 @@ class MQTTPublisher:
                 while self.connected and not self.disconnecting:
                     try:
                         with self.gammu_lock:
-                            # Check hangup flag before ReadDevice
-                            if self._hangup_requested:
-                                self._hangup_requested = False
-                                try:
-                                    gammu_machine.CancelCall(0, True)
-                                    logger.info("📞 Call terminated successfully (via ReadDevice loop)")
-                                except Exception as e:
-                                    logger.error(f"📞 CancelCall failed: {e}")
-                                self.publish_outgoing_call_state(False)
-                            else:
-                                gammu_machine.ReadDevice()
+                            gammu_machine.ReadDevice()
                     except Exception as e:
                         logger.debug(f"ReadDevice: {e}")
                     time.sleep(1)
@@ -1637,8 +1593,24 @@ class MQTTPublisher:
 
         return False
 
+    def _is_call_active(self):
+        """Check if outgoing call is still in progress"""
+        if self._call_active_until and time.time() < self._call_active_until:
+            return True
+        if self._call_active_until and time.time() >= self._call_active_until:
+            # Call timeout expired, auto-clear state
+            self._call_active_until = None
+            self._outgoing_call_active = False
+            self.publish_outgoing_call_state(False)
+            logger.info("📞 Call period ended, resuming normal operations")
+        return False
+
     def track_gammu_operation(self, operation_name, gammu_function, *args, **kwargs):
         """Execute gammu operation with connectivity tracking, thread safety, and Python-level timeout"""
+        # Skip operations during active outgoing call (modem is busy)
+        if self._is_call_active() and operation_name != "DialVoice":
+            logger.debug(f"⏸️ Skipping '{operation_name}' - outgoing call in progress")
+            return None
         # Use lock to serialize all Gammu operations (prevent race conditions on serial port)
         with self.gammu_lock:
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
