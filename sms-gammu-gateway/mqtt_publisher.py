@@ -448,11 +448,13 @@ class MQTTPublisher:
                 if number and self.gammu_machine:
                     logger.info(f"📞 MQTT dial request: {number}")
                     try:
+                        # Set call active BEFORE DialVoice to prevent ReadDevice race condition
+                        self._call_active_until = time.time() + 50  # 40s network timeout + 10s buffer
                         self.track_gammu_operation("DialVoice", self.gammu_machine.DialVoice, number)
-                        self._call_active_until = time.time() + 45  # 40s network timeout + 5s buffer
                         self.publish_outgoing_call_state(True, number)
-                        logger.info("📞 Call active, gammu operations paused for 45s")
+                        logger.info("📞 Call active, gammu operations paused for ~50s")
                     except Exception as e:
+                        self._call_active_until = None  # Clear on failure
                         logger.error(f"Failed to dial {number}: {e}")
                 else:
                     logger.warning("📞 Dial request but no phone number set or gammu not available")
@@ -1580,6 +1582,9 @@ class MQTTPublisher:
                             time.sleep(1)
                             continue
                         with self.gammu_lock:
+                            # Re-check inside lock to prevent race with DialVoice
+                            if self._is_call_active():
+                                continue
                             gammu_machine.ReadDevice()
                     except Exception as e:
                         logger.debug(f"ReadDevice: {e}")
@@ -1613,7 +1618,7 @@ class MQTTPublisher:
         # Skip operations during active outgoing call (modem is busy)
         if self._is_call_active() and operation_name != "DialVoice":
             logger.debug(f"⏸️ Skipping '{operation_name}' - outgoing call in progress")
-            return None
+            raise Exception("Outgoing call in progress, modem busy")
         # Use lock to serialize all Gammu operations (prevent race conditions on serial port)
         with self.gammu_lock:
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
@@ -1781,6 +1786,8 @@ class MQTTPublisher:
                 # Check for new SMS with connectivity tracking (this will handle errors and update status)
                 try:
                     all_sms = self.track_gammu_operation("retrieveAllSms", retrieveAllSms, gammu_machine)
+                    if not all_sms:
+                        all_sms = []
                     current_count = len(all_sms)
                     logger.info(f"✅ SMS monitoring cycle OK: {current_count} messages on SIM")
                 except Exception as e:

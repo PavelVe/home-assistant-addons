@@ -715,14 +715,17 @@ class CallDial(Resource):
         try:
             import time as time_mod
             call_duration = duration if duration > 0 else 45
+            # Set call active BEFORE DialVoice to prevent ReadDevice race condition
+            mqtt_publisher._call_active_until = time_mod.time() + call_duration + 10
             mqtt_publisher.track_gammu_operation("DialVoice", machine.DialVoice, number)
-            mqtt_publisher._call_active_until = time_mod.time() + call_duration + 5
             mqtt_publisher.publish_outgoing_call_state(True, number)
 
             return {"status": 200, "message": f"Call initiated to {number}, operations paused for {call_duration}s"}, 200
         except TimeoutError as e:
+            mqtt_publisher._call_active_until = None  # Clear on failure
             api.abort(503, f"Modem timeout: {str(e)}")
         except Exception as e:
+            mqtt_publisher._call_active_until = None  # Clear on failure
             api.abort(503, f"Failed to dial: {str(e)}")
 
 
