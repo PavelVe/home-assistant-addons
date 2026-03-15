@@ -25,7 +25,7 @@ configuration:
     description: Povolit symbolické odkazy směřující mimo definované adresáře médií
   root_container:
     name: Kořenový kontejner
-    description: "Kořenový kontejner při procházení: . (adresář), B (hudba), M (hudba), V (video), P (obrázky)"
+    description: "Kořenový kontejner při procházení: . (standardní), B (procházení složek), M (hudba), V (video), P (obrázky)"
   force_rescan:
     name: Vynutit přeskenování
     description: Smazat databázi médií a provést kompletní přeskenování při dalším startu (automaticky se resetuje po použití)

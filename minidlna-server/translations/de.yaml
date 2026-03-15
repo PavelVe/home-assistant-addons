@@ -25,7 +25,7 @@ configuration:
     description: Symbolische Links erlauben, die außerhalb der definierten Medienverzeichnisse zeigen
   root_container:
     name: Stammcontainer
-    description: "Stammcontainer beim Durchsuchen: . (Verzeichnis), B (Musik), M (Musik), V (Video), P (Bilder)"
+    description: "Stammcontainer beim Durchsuchen: . (Standard), B (Verzeichnisse durchsuchen), M (Musik), V (Video), P (Bilder)"
   force_rescan:
     name: Neuscan erzwingen
     description: Mediendatenbank löschen und beim nächsten Start einen vollständigen Neuscan durchführen

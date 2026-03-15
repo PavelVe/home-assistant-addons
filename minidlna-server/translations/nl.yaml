@@ -25,7 +25,7 @@ configuration:
     description: Symbolische links toestaan die buiten de gedefinieerde mediamappen verwijzen
   root_container:
     name: Hoofdcontainer
-    description: "Hoofdcontainer bij browsen: . (map), B (muziek), M (muziek), V (video), P (afbeeldingen)"
+    description: "Hoofdcontainer bij browsen: . (standaard), B (mappen doorzoeken), M (muziek), V (video), P (afbeeldingen)"
   force_rescan:
     name: Herscan forceren
     description: Mediadatabase verwijderen en een volledige herscan uitvoeren bij de volgende start

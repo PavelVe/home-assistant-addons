@@ -25,7 +25,7 @@ configuration:
     description: Allow symlinks that point outside the defined media directories
   root_container:
     name: Root Container
-    description: "Root container when browsing: . (directory), B (music), M (music), V (video), P (pictures)"
+    description: "Root container when browsing: . (standard), B (browse directories), M (music), V (video), P (pictures)"
   force_rescan:
     name: Force Rescan
     description: Delete the media database and perform a full rescan on next start (automatically resets after use)

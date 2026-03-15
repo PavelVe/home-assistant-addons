@@ -22,15 +22,15 @@
     "8200/tcp": "MiniDLNA HTTP port (web UI + streaming)"
   },
   "options": {
-    "media_dirs": ["AV,/media"],
-    "friendly_name": "Home Assistant DLNA",
+    "media_dirs": ["V,/media/DLNA/video", "A,/media/DLNA/music", "P,/media/DLNA/photo"],
+    "friendly_name": "HA-DLNA",
     "inotify": true,
     "notify_interval": 900,
     "strict_dlna": false,
     "enable_subtitles": true,
     "log_level": "warn",
     "wide_links": false,
-    "root_container": ".",
+    "root_container": "B",
     "force_rescan": false
   },
   "schema": {

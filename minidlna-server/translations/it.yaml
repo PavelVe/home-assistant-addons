@@ -25,7 +25,7 @@ configuration:
     description: Consentire link simbolici che puntano al di fuori delle directory multimediali definite
   root_container:
     name: Contenitore radice
-    description: "Contenitore radice durante la navigazione: . (directory), B (musica), M (musica), V (video), P (immagini)"
+    description: "Contenitore radice durante la navigazione: . (standard), B (sfoglia cartelle), M (musica), V (video), P (immagini)"
   force_rescan:
     name: Forza ri-scansione
     description: Eliminare il database multimediale ed eseguire una scansione completa al prossimo avvio

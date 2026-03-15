@@ -25,7 +25,7 @@ configuration:
     description: Zezwalaj na dowiązania symboliczne wskazujące poza zdefiniowane katalogi mediów
   root_container:
     name: Kontener główny
-    description: "Kontener główny podczas przeglądania: . (katalog), B (muzyka), M (muzyka), V (wideo), P (obrazy)"
+    description: "Kontener główny podczas przeglądania: . (standardowy), B (przeglądanie katalogów), M (muzyka), V (wideo), P (obrazy)"
   force_rescan:
     name: Wymuś ponowne skanowanie
     description: Usuń bazę danych mediów i wykonaj pełne skanowanie przy następnym uruchomieniu

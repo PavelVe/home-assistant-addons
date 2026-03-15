@@ -25,7 +25,7 @@ configuration:
     description: Autoriser les liens symboliques pointant en dehors des répertoires médias définis
   root_container:
     name: Conteneur racine
-    description: "Conteneur racine lors de la navigation : . (répertoire), B (musique), M (musique), V (vidéo), P (images)"
+    description: "Conteneur racine lors de la navigation : . (standard), B (parcourir les dossiers), M (musique), V (vidéo), P (images)"
   force_rescan:
     name: Forcer le re-scan
     description: Supprimer la base de données des médias et effectuer un scan complet au prochain démarrage

@@ -13,10 +13,6 @@ COPY icons/sm.png /usr/share/minidlna/icons/sm.png
 COPY icons/lrg.jpg /usr/share/minidlna/icons/lrg.jpg
 COPY icons/sm.jpg /usr/share/minidlna/icons/sm.jpg
 
-EXPOSE 8200
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -q -O /dev/null http://localhost:8200 || exit 1
 
 LABEL \
     io.hass.name="MiniDLNA" \

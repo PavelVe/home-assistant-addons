@@ -25,7 +25,7 @@ configuration:
     description: Permitir links simbólicos que apontem para fora dos diretórios de mídia definidos
   root_container:
     name: Contêiner raiz
-    description: "Contêiner raiz ao navegar: . (diretório), B (música), M (música), V (vídeo), P (imagens)"
+    description: "Contêiner raiz ao navegar: . (padrão), B (explorar pastas), M (música), V (vídeo), P (imagens)"
   force_rescan:
     name: Forçar re-varredura
     description: Excluir o banco de dados de mídia e realizar uma varredura completa na próxima inicialização
