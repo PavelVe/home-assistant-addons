@@ -1,7 +1,7 @@
 ARG BUILD_FROM=ghcr.io/home-assistant/aarch64-base:3.19
 FROM $BUILD_FROM
 
-RUN apk add --no-cache minidlna wget
+RUN apk add --no-cache minidlna nginx
 
 RUN mkdir -p /data/db
 
@@ -15,7 +15,7 @@ COPY icons/sm.jpg /usr/share/minidlna/icons/sm.jpg
 
 
 LABEL \
-    io.hass.name="MiniDLNA" \
+    io.hass.name="MiniDLNA Server" \
     io.hass.description="DLNA/UPnP media server (ReadyMedia)" \
     io.hass.type="addon" \
     io.hass.version="1.0.0" \

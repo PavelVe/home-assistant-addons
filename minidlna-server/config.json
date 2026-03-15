@@ -1,5 +1,5 @@
 {
-  "name": "MiniDLNA",
+  "name": "MiniDLNA Server",
   "version": "1.0.0",
   "slug": "minidlna_server",
   "description": "DLNA/UPnP media server (ReadyMedia) for streaming audio, video and photos to network devices",
