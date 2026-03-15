@@ -55,6 +55,46 @@ media_dirs:
   - "P,/share/photos"
 ```
 
+## Cover Art / Thumbnails
+
+MiniDLNA can display cover art (thumbnail images) for your media in DLNA clients (Smart TVs, media players, etc.).
+
+### Video Thumbnails
+
+Place a `.jpg` file with the **same name** as the video file next to it:
+
+```
+/media/movies/
+├── Movie.mkv
+├── Movie.jpg          ← thumbnail for Movie.mkv
+├── Another Film.mp4
+└── Another Film.jpg   ← thumbnail for Another Film.mp4
+```
+
+### Folder Cover
+
+To set a cover image for an entire folder, place a file named `Cover.jpg` or `AlbumArt.jpg` in that folder:
+
+```
+/media/movies/
+├── Cover.jpg          ← cover for the whole folder
+├── Movie1.mkv
+└── Movie2.mkv
+```
+
+### Music Album Art
+
+For music files, MiniDLNA uses:
+- Embedded album art (ID3 tags) in the audio file
+- `Cover.jpg`, `AlbumArt.jpg`, or `Folder.jpg` in the album folder
+
+### Notes
+
+- Supported image format is **JPEG** (`.jpg`)
+- Per-file thumbnails take priority over folder covers
+- After adding cover images, restart the add-on or wait for inotify to pick up changes (if enabled)
+- Use `force_rescan: true` if covers are not appearing after adding them to existing media
+
 ## Ports
 
 - **8200** - MiniDLNA web interface and streaming port (accessible via Ingress and direct port)
