@@ -16,6 +16,7 @@ body:
       options:
         - TeltonikaServer
         - SMS Gammu Gateway
+        - MiniDLNA Server
     validations:
       required: true
 
