@@ -4,6 +4,10 @@ set -e
 
 bashio::log.info "Starting MiniDLNA (ReadyMedia) server..."
 
+# Port z HA ingress konfigurace
+PORT=$(bashio::addon.ingress_port)
+bashio::log.info "MiniDLNA port: ${PORT}"
+
 # Načtení konfigurace
 FRIENDLY_NAME=$(bashio::config 'friendly_name')
 INOTIFY=$(bashio::config 'inotify')
@@ -14,10 +18,6 @@ LOG_LEVEL=$(bashio::config 'log_level')
 WIDE_LINKS=$(bashio::config 'wide_links')
 ROOT_CONTAINER=$(bashio::config 'root_container')
 FORCE_RESCAN=$(bashio::config 'force_rescan')
-
-# Port z HA ingress konfigurace (shodný s ports v config.json)
-PORT=$(bashio::addon.ingress_port)
-bashio::log.info "MiniDLNA will listen on port ${PORT}"
 
 # Konverze bool na yes/no pro minidlna.conf
 bool_to_yesno() {
@@ -34,13 +34,8 @@ if [ "${FORCE_RESCAN}" = "true" ]; then
     rm -rf /data/db/*
 fi
 
-# Vytvoření adresáře pro databázi a logy
+# Vytvoření adresáře pro databázi
 mkdir -p /data/db
-mkdir -p /var/log/minidlna
-
-# Detekce IP adres pro DNS rebinding workaround
-# MiniDLNA kontroluje Host header proti listening_ip - přidáme localhost i reálnou IP
-HOST_IP=$(hostname -i 2>/dev/null | awk '{print $1}' || echo "")
 
 # Generování minidlna.conf
 {
@@ -48,13 +43,7 @@ HOST_IP=$(hostname -i 2>/dev/null | awk '{print $1}' || echo "")
     echo "# Do not edit manually"
     echo ""
     echo "port=${PORT}"
-    echo ""
-
-    # Listening IP - localhost pro ingress proxy + reálná IP pro DLNA klienty
-    echo "listening_ip=127.0.0.1"
-    if [ -n "${HOST_IP}" ] && [ "${HOST_IP}" != "127.0.0.1" ]; then
-        echo "listening_ip=${HOST_IP}"
-    fi
+    echo "user=root"
     echo ""
 
     # Media directories
@@ -73,12 +62,10 @@ HOST_IP=$(hostname -i 2>/dev/null | awk '{print $1}' || echo "")
     echo ""
     echo "friendly_name=${FRIENDLY_NAME}"
     echo "db_dir=/data/db"
-    echo "log_dir=/var/log/minidlna"
     echo "inotify=$(bool_to_yesno "${INOTIFY}")"
     echo "notify_interval=${NOTIFY_INTERVAL}"
     echo "strict_dlna=$(bool_to_yesno "${STRICT_DLNA}")"
     echo "enable_subtitles=$(bool_to_yesno "${ENABLE_SUBTITLES}")"
-    echo "log_level=${LOG_LEVEL}"
     echo "wide_links=$(bool_to_yesno "${WIDE_LINKS}")"
     echo "root_container=${ROOT_CONTAINER}"
     echo ""
@@ -91,8 +78,5 @@ cat /etc/minidlna.conf
 
 bashio::log.info "Starting MiniDLNA daemon..."
 
-# Spuštění minidlna jako daemon (bez -d = respektuje log_level, žádný debug spam)
-minidlnad -f /etc/minidlna.conf -P /var/run/minidlna.pid
-
-# Výstup logů na stdout pro HA
-exec tail -F /var/log/minidlna/minidlna.log
+# Spuštění minidlna v popředí (stejný přístup jako cavaliere78/ha_minidlna)
+exec minidlnad -d -f /etc/minidlna.conf

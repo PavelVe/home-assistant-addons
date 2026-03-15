@@ -15,12 +15,7 @@
   "init": false,
   "map": ["media:ro", "share:ro"],
   "privileged": ["NET_ADMIN"],
-  "ports": {
-    "8200/tcp": 8200
-  },
-  "ports_description": {
-    "8200/tcp": "MiniDLNA HTTP port (web UI + streaming)"
-  },
+  "webui": "http://[HOST]:[PORT:8200]",
   "options": {
     "media_dirs": ["V,/media/DLNA/video", "A,/media/DLNA/music", "P,/media/DLNA/photo"],
     "friendly_name": "HA-DLNA",
