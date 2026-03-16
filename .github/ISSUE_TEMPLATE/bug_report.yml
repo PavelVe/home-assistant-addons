@@ -14,8 +14,8 @@ body:
       label: Add-on
       description: Which add-on is this bug report about?
       options:
-        - TeltonikaServer
         - SMS Gammu Gateway
+        - TeltonikaServer
         - MiniDLNA Server
     validations:
       required: true

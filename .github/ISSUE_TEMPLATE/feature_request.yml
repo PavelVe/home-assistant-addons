@@ -14,8 +14,8 @@ body:
       label: Add-on
       description: Which add-on is this feature request for?
       options:
-        - TeltonikaServer
         - SMS Gammu Gateway
+        - TeltonikaServer
         - MiniDLNA Server
     validations:
       required: true

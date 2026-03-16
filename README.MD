@@ -37,7 +37,7 @@ This addon receives AVL data from Teltonika GPS devices over TCP and logs it wit
 
 REST API SMS Gateway using python-gammu for USB GSM modems (SIM800L, Huawei, Quectel, etc.). Send and receive SMS messages via REST API with MQTT integration and Home Assistant auto-discovery.
 
-### [MiniDLNA](./minidlna-server)
+### [MiniDLNA Server](./minidlna-server)
 
 ![Supports aarch64 Architecture][aarch64-shield]
 ![Supports amd64 Architecture][amd64-shield]
