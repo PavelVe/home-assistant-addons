@@ -12,6 +12,13 @@ from buffer_manager import BufferManager
 class TeltonikaWebHandler(BaseHTTPRequestHandler):
     # base_dir bude nastaven při vytvoření instance
 
+    def do_HEAD(self):
+        """Zpracuje HEAD požadavky (pro health check monitory jako UptimeRobot)"""
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+
     def do_GET(self):
         """Zpracuje GET požadavky"""
         parsed_url = urlparse(self.path)

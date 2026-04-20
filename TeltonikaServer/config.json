@@ -1,6 +1,6 @@
 {
   "name": "Teltonika Server",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "slug": "teltonika_server",
   "description": "TCP server for receiving AVL data from Teltonika GPS devices. Supports Codec8/8E protocol, IMEI filtering, log rotation, and web interface for log viewing.",
   "startup": "services",

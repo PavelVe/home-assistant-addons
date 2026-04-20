@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.2 🔧 HEAD REQUEST SUPPORT
+
+- HEAD Method Support
+
 ## 1.9.1 🚀 AUTOMATIC AVL DATA PARSING
 
 ### ✨ Major New Features
