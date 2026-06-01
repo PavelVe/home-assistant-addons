@@ -69,6 +69,125 @@ This add-on provides a complete SMS gateway solution for Home Assistant, replaci
 4. Configure the add-on (see below)
 5. Start the add-on
 
+## 🐳 Standalone Docker (without HA Supervisor)
+
+If you run Home Assistant as a manual Docker container (HA Container) — or you don't use Home Assistant at all — you can still run the gateway as a standalone Docker container. The MQTT auto-discovery will integrate it into HA the same way as the add-on.
+
+> Thanks to [@mickeyreg](https://github.com/PavelVe/home-assistant-addons/issues/15#issuecomment-4582397033) for figuring this out.
+
+**Limitations:**
+- The HA Ingress web UI is not available — access the web UI directly on port `5000`.
+- You'll need to manage the `options.json` file yourself instead of using the HA add-on UI.
+
+> **Multiple instances:** Since v1.6.5 you can run multiple gateways on the same MQTT broker. Set a unique `mqtt_device_id` (e.g. `sms_gateway_2`) and matching `mqtt_topic_prefix` for each instance.
+
+### Step 1 — Clone the repository
+
+```bash
+git clone https://github.com/PavelVe/home-assistant-addons.git
+cd home-assistant-addons/sms-gammu-gateway/
+```
+
+### Step 2 — Create `run-standalone.sh`
+
+The default `run.sh` uses `bashio` (Home Assistant Supervisor only). Create a standalone version next to it:
+
+```bash
+#!/bin/bash
+set -e
+
+echo "Starting SMS Gammu Gateway..."
+
+DEVICE_PATH=$(python3 -c "import json; print(json.load(open('/data/options.json'))['device_path'])")
+if [ ! -c "${DEVICE_PATH}" ]; then
+    echo "WARNING: Device ${DEVICE_PATH} not found. Please check your GSM modem connection."
+    echo "Available tty devices:"
+    ls -la /dev/tty* || true
+fi
+
+cd /app
+exec python3 -u run.py
+```
+
+Then point the Dockerfile at it:
+
+```bash
+sed -i.bak 's|run.sh|run-standalone.sh|g' Dockerfile
+```
+
+(Or edit `Dockerfile` manually — replace `run.sh` with `run-standalone.sh` in the `COPY` and `CMD` lines.)
+
+### Step 3 — Create `options.json`
+
+This file replaces the HA add-on configuration UI. Adjust values to your setup:
+
+```json
+{
+  "device_path": "/dev/serial/by-id/usb-HUAWEI_Technology_HUAWEI_Mobile-if0",
+  "pin": "",
+  "ssl": false,
+  "username": "admin",
+  "password": "admin",
+  "mqtt_enabled": true,
+  "mqtt_host": "192.168.1.10",
+  "mqtt_port": 1883,
+  "mqtt_username": "your_mqtt_user",
+  "mqtt_password": "your_mqtt_password",
+  "mqtt_topic_prefix": "homeassistant/sensor/sms_gateway",
+  "mqtt_device_id": "sms_gateway",
+  "sms_monitoring_enabled": true,
+  "sms_check_interval": 30,
+  "sms_cost_per_message": 0.0,
+  "sms_cost_currency": "EUR",
+  "auto_delete_read_sms": false,
+  "missed_calls_monitoring_enabled": true,
+  "incoming_call_auto_reset_seconds": 10,
+  "voice_call_enabled": false
+}
+```
+
+> **Tip:** Prefer a stable device path like `/dev/serial/by-id/...` over `/dev/ttyUSB0` — the latter can change after reboot or reconnect. See [Device Path Options](#device-path-options) below for details.
+
+### Step 4 — Create `docker-compose.yml`
+
+```yaml
+services:
+  sms-gammu-gateway:
+    image: sms-gammu-gateway
+    container_name: sms-gammu-gateway
+    restart: unless-stopped
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    volumes:
+      - ./sms-gateway-data:/data
+    ports:
+      - "5000:5000"
+    privileged: true
+```
+
+Adjust the `devices:` entry to match your actual modem device.
+
+### Step 5 — Build and run
+
+```bash
+mkdir -p sms-gateway-data
+cp options.json sms-gateway-data/options.json
+
+docker build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.19 -t sms-gammu-gateway .
+docker compose up -d
+docker logs -f sms-gammu-gateway
+```
+
+For other architectures replace `amd64-base` with `aarch64-base`, `armv7-base`, `armhf-base`, or `i386-base`.
+
+After startup the modem should appear in Home Assistant under MQTT auto-discovered devices (assuming the MQTT integration is configured and pointed at the same broker).
+
+To stop:
+
+```bash
+docker compose down
+```
+
 ## Configuration
 
 ### Basic Settings
@@ -112,6 +231,7 @@ ls -la /dev/serial/by-id/
 | `mqtt_username` | `""` | MQTT username |
 | `mqtt_password` | `""` | MQTT password |
 | `mqtt_topic_prefix` | `homeassistant/sensor/sms_gateway` | Topic prefix |
+| `mqtt_device_id` | `sms_gateway` | Unique device identifier for HA auto-discovery. Change only when running multiple instances on the same MQTT broker (e.g. `sms_gateway_2`). |
 | `sms_monitoring_enabled` | `true` | Auto-detect incoming SMS |
 | `sms_check_interval` | `60` | SMS check interval (seconds) |
 

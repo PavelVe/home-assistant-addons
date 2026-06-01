@@ -32,6 +32,9 @@ configuration:
   mqtt_topic_prefix:
     name: MQTT-Topic-Präfix
     description: MQTT-Topic-Präfix für veröffentlichte Nachrichten
+  mqtt_device_id:
+    name: MQTT-Geräte-ID
+    description: Eindeutige Gerätekennung für die automatische Home-Assistant-Erkennung. Nur ändern, wenn mehrere Instanzen auf demselben MQTT-Broker laufen. Der Standardwert behält das bisherige Verhalten bei.
   sms_monitoring_enabled:
     name: SMS-Überwachung aktivieren
     description: Eingehende SMS automatisch erkennen und an MQTT veröffentlichen (steuert Callback und Polling)

@@ -32,6 +32,9 @@ configuration:
   mqtt_topic_prefix:
     name: MQTT Topic Prefix
     description: Prefix pre MQTT topicy publikovaných správ
+  mqtt_device_id:
+    name: ID zariadenia MQTT
+    description: Jedinečný identifikátor zariadenia pre automatické vyhľadávanie v Home Assistante. Meňte iba pri prevádzke viacerých inštancií na rovnakom MQTT brokeri. Predvolená hodnota zachováva existujúce správanie.
   sms_monitoring_enabled:
     name: Povoliť SMS Monitoring
     description: Automaticky detekovať a publikovať prichádzajúce SMS správy do MQTT (ovláda callback aj polling)

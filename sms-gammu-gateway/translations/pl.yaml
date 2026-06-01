@@ -32,6 +32,9 @@ configuration:
   mqtt_topic_prefix:
     name: Prefiks tematu MQTT
     description: Prefiks tematu MQTT dla publikowanych wiadomości
+  mqtt_device_id:
+    name: Identyfikator urządzenia MQTT
+    description: Unikalny identyfikator urządzenia dla automatycznego wykrywania w Home Assistant. Zmień tylko przy uruchamianiu wielu instancji na tym samym brokerze MQTT. Wartość domyślna zachowuje obecne zachowanie.
   sms_monitoring_enabled:
     name: Włącz monitorowanie SMS
     description: Automatycznie wykrywaj i publikuj przychodzące SMS do MQTT (steruje callbackiem i pollingiem)

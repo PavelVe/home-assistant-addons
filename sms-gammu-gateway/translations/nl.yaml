@@ -32,6 +32,9 @@ configuration:
   mqtt_topic_prefix:
     name: MQTT-topic prefix
     description: MQTT-topic prefix voor gepubliceerde berichten
+  mqtt_device_id:
+    name: MQTT-apparaat-ID
+    description: Unieke apparaat-identificatie voor Home Assistant auto-discovery. Wijzig alleen bij meerdere instanties op dezelfde MQTT-broker. Standaardwaarde behoudt huidig gedrag.
   sms_monitoring_enabled:
     name: SMS-monitoring inschakelen
     description: Automatisch inkomende SMS detecteren en publiceren naar MQTT (regelt callback en polling)

@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.5] – 2026-06-01
+
+### Added
+
+* **`mqtt_device_id` option** – New configuration option for running multiple gateway instances on the same MQTT broker. Default value (`sms_gateway`) preserves existing behavior — no migration needed for current users.
+* **Standalone Docker installation guide** – New README section with step-by-step instructions for running the gateway without Home Assistant Supervisor (e.g. HA Container, plain Docker). Thanks to [@mickeyreg](https://github.com/PavelVe/home-assistant-addons/issues/15#issuecomment-4582397033) for the original guide.
+
+### Fixed
+
+* **MQTT auto-discovery collisions** – Discovery topics, `unique_id`s and HA device identifier are no longer hardcoded. Multiple instances can now coexist on the same MQTT broker without overwriting each other in Home Assistant (#15).
+* **Password fields rendered as plain text** – `pin`, `password` and `mqtt_password` in the addon configuration UI are now masked password inputs (#41).
+
 ## [1.6.4] – 2026-03-15
 
 ### Fixed
