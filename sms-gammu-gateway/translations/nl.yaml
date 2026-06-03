@@ -2,6 +2,12 @@ configuration:
   device_path:
     name: Apparaatpad
     description: Pad naar uw GSM-modem (bijv. /dev/ttyUSB0)
+  modem_baud_rate:
+    name: Modem-baudrate
+    description: 'Seriële snelheid van het GSM-modem. Een getal zoals 115200 zet de snelheid vast (aanbevolen, lost vastlopen van SIM800/SIM800C op); "auto" laat gammu deze detecteren (oud gedrag). Start het modem na de update niet, probeer dan "auto".'
+  urc_filter_enabled:
+    name: URC-filter (modemwaarschuwingen)
+    description: Filtert overbodige statusmeldingen van het modem zoals "OVER-VOLTAGE WARNNING" (typisch voor SIM800) die de gammu-communicatie kunnen laten vastlopen. Aanbevolen om ingeschakeld te laten.
   pin:
     name: SIM PIN-code
     description: PIN-code van SIM-kaart (leeg laten als geen PIN vereist)

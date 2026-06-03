@@ -2,6 +2,12 @@ configuration:
   device_path:
     name: Cesta k zariadeniu
     description: Cesta k vášmu GSM modemu (napr. /dev/ttyUSB0)
+  modem_baud_rate:
+    name: Rýchlosť modemu (baud)
+    description: 'Sériová rýchlosť GSM modemu. Číslo ako 115200 rýchlosť zafixuje (odporúčané, rieši zasekávanie SIM800/SIM800C); "auto" nechá gammu rýchlosť zistiť (pôvodné správanie). Ak modem po aktualizácii nenaštartuje, skúste "auto".'
+  urc_filter_enabled:
+    name: Filter URC (varovania modemu)
+    description: Odfiltruje rušivé stavové hlásenia modemu ako "OVER-VOLTAGE WARNNING" (typické pre SIM800), ktoré môžu zaseknúť komunikáciu s gammu. Odporúča sa ponechať zapnuté.
   pin:
     name: PIN SIM karty
     description: PIN kód SIM karty (nechajte prázdne, ak PIN nie je potrebný)

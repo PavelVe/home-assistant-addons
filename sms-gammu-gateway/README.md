@@ -195,6 +195,8 @@ docker compose down
 | Option | Default | Description |
 |--------|---------|-------------|
 | `device_path` | `/dev/ttyUSB0` | Path to your GSM modem device (see Device Path Options below) |
+| `modem_baud_rate` | `115200` | Serial speed of the modem. A fixed number (recommended) avoids gammu's baud-rate auto-detection hanging on some modules (e.g. SIM800/SIM800C). Use `auto` for the old auto-detect behavior, or any custom value (`9600`, `460800`, …). |
+| `urc_filter_enabled` | `true` | Filter out spurious modem status messages such as `OVER-VOLTAGE WARNNING` that can freeze gammu communication (typical for SIM800). Keep enabled unless you have a reason to disable. |
 | `pin` | `""` | SIM card PIN (leave empty if no PIN) |
 | `ssl` | `false` | Enable HTTPS |
 | `username` | `admin` | API username |
@@ -502,6 +504,20 @@ Access full API documentation via:
 - Verify device permissions
 - Try different USB ports
 - Check `dmesg | grep tty` for device detection
+
+### Modem Freezes / SMS Not Being Read (SIM800 / SIM800C)
+Symptoms: the addon initializes the device but every operation then times out
+(`GetSignalQuality timed out`), no SMS are read, entities go unavailable.
+
+Two common causes, both addressed since **v1.7.0**:
+1. **Baud-rate auto-detection hangs.** Set `modem_baud_rate` to a fixed value
+   (default `115200`). Most modems incl. SIM800/SIM800C work on `115200`.
+2. **The modem floods the line with `OVER-VOLTAGE WARNNING`** (or similar power
+   URCs), which interleave with AT responses and freeze gammu. Keep
+   `urc_filter_enabled: true` (default) so these lines are filtered out before
+   they reach gammu.
+
+If after the update the modem does not start at all, try `modem_baud_rate: auto`.
 
 ### SMS Not Sending
 - Check signal strength (should be > 20%)

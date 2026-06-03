@@ -2,6 +2,12 @@ configuration:
   device_path:
     name: Device Path
     description: Path to your GSM modem device (e.g., /dev/ttyUSB0)
+  modem_baud_rate:
+    name: Modem Baud Rate
+    description: 'Serial speed of the GSM modem. A number like 115200 fixes the speed (recommended, fixes SIM800/SIM800C freezing); "auto" lets gammu detect it (old behavior). If the modem does not start after the update, try "auto".'
+  urc_filter_enabled:
+    name: URC Filter (modem warnings)
+    description: Filter out spurious modem status messages such as "OVER-VOLTAGE WARNNING" (typical for SIM800) that can freeze gammu communication. Recommended to keep enabled.
   pin:
     name: SIM PIN
     description: SIM card PIN code (leave empty if no PIN required)

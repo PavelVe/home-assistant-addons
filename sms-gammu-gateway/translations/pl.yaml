@@ -2,6 +2,12 @@ configuration:
   device_path:
     name: Ścieżka urządzenia
     description: Ścieżka do modemu GSM (np. /dev/ttyUSB0)
+  modem_baud_rate:
+    name: Prędkość modemu (baud)
+    description: 'Prędkość portu szeregowego modemu GSM. Liczba taka jak 115200 ustala prędkość (zalecane, naprawia zawieszanie się SIM800/SIM800C); "auto" pozwala gammu ją wykryć (stare zachowanie). Jeśli modem nie uruchomi się po aktualizacji, spróbuj "auto".'
+  urc_filter_enabled:
+    name: Filtr URC (ostrzeżenia modemu)
+    description: Odfiltrowuje zbędne komunikaty stanu modemu, takie jak "OVER-VOLTAGE WARNNING" (typowe dla SIM800), które mogą zawiesić komunikację z gammu. Zalecane pozostawienie włączonego.
   pin:
     name: PIN karty SIM
     description: Kod PIN karty SIM (pozostaw puste, jeśli PIN nie jest wymagany)

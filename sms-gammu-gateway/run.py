@@ -18,6 +18,7 @@ from flask_restx import Api, Resource, fields, reqparse, apidoc
 
 from support import init_state_machine, retrieveAllSms, deleteSms, encodeSms
 from mqtt_publisher import MQTTPublisher
+from urc_filter import URCFilterProxy
 from gammu import GSMNetworks
 
 # Configure logging with timestamp
@@ -103,7 +104,9 @@ def load_ha_config():
             'sms_check_interval': 60,
             'sms_cost_per_message': 0.0,
             'sms_cost_currency': 'CZK',
-            'auto_delete_read_sms': False
+            'auto_delete_read_sms': False,
+            'modem_baud_rate': '115200',
+            'urc_filter_enabled': True
         }
 
 # Load version and configuration
@@ -115,6 +118,8 @@ port = 5000  # Fixed port - must match ingress_port in config.json
 username = config.get('username', 'admin')
 password = config.get('password', 'password')
 device_path = config.get('device_path', '/dev/ttyUSB0')
+baud_rate = str(config.get('modem_baud_rate', '115200'))
+urc_filter_enabled = config.get('urc_filter_enabled', True)
 
 # Initialize MQTT publisher FIRST (before gammu)
 mqtt_publisher = MQTTPublisher(config)
@@ -125,8 +130,24 @@ if mqtt_publisher.connected:
     mqtt_publisher.publish_device_status()
     logging.info("📡 Published initial OFFLINE status on startup")
 
+# Optionally insert URC filter proxy between modem and gammu.
+# Řeší moduly (SIM800/SIM800C), které chrlí "OVER-VOLTAGE WARNNING" apod.
+# a tím zasekávají gammu. Proxy zároveň drží reálný port na pevné rychlosti.
+gammu_device = device_path
+urc_proxy = None
+if urc_filter_enabled:
+    # Proxy potřebuje konkrétní rychlost reálného portu; pro 'auto' použij 115200.
+    proxy_baud = 115200 if baud_rate == 'auto' else int(baud_rate)
+    try:
+        urc_proxy = URCFilterProxy(device_path, proxy_baud)
+        gammu_device = urc_proxy.start()
+    except Exception as e:
+        logging.error(f"⚠️ URC filter proxy failed to start ({e}); using device directly")
+        urc_proxy = None
+        gammu_device = device_path
+
 # Now initialize gammu state machine (this may fail if modem not connected)
-machine = init_state_machine(pin, device_path)
+machine = init_state_machine(pin, gammu_device, baud_rate)
 
 # Set gammu machine for MQTT SMS sending
 mqtt_publisher.set_gammu_machine(machine)
@@ -144,6 +165,8 @@ def signal_handler(signum, frame):
     except Exception as e:
         logging.error(f"❌ Error during MQTT disconnect: {e}")
     finally:
+        if urc_proxy is not None:
+            urc_proxy.stop()
         sys.exit(0)
 
 signal.signal(signal.SIGTERM, signal_handler)

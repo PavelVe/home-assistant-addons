@@ -1,6 +1,6 @@
 {
   "name": "SMS Gammu Gateway",
-  "version": "1.6.5",
+  "version": "1.7.0",
   "slug": "sms_gammu_gateway",
   "description": "SMS gateway for USB GSM modems (SIM800L, Huawei, Quectel, etc.) with REST API, MQTT integration and Home Assistant auto-discovery. Send/receive SMS, Flash SMS support, signal and network monitoring, incoming and missed call detection, SMS cost tracking. Web UI with Swagger documentation.",
   "startup": "services",
@@ -11,6 +11,8 @@
   "homeassistant": "2022.1.1",
   "options": {
     "device_path": "/dev/ttyUSB0",
+    "modem_baud_rate": "115200",
+    "urc_filter_enabled": true,
     "pin": "",
     "ssl": false,
     "username": "admin",
@@ -33,6 +35,8 @@
   },
   "schema": {
     "device_path": "str",
+    "modem_baud_rate": "match(^(auto|[0-9]+)$)",
+    "urc_filter_enabled": "bool",
     "pin": "password?",
     "ssl": "bool",
     "username": "str",

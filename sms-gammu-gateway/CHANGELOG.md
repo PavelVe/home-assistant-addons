@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.0] – 2026-06-02
+
+> ⚠️ **Heads-up on the new default:** `modem_baud_rate` now defaults to `115200` instead of auto-detection. This fixes the freezing for most modems out of the box. If your modem does **not** start after this update, set `modem_baud_rate` to `auto` in the addon configuration and restart.
+
+### Added
+
+* **`modem_baud_rate` option** – Lets you set the serial speed of the GSM modem. A fixed value such as `115200` (the new default) prevents gammu's baud-rate auto-detection from hanging on certain modules. Set to `auto` to restore the previous auto-detect behavior, or enter any custom speed (e.g. `9600`, `460800`).
+* **`urc_filter_enabled` option** – Optional serial proxy (enabled by default) that filters out spurious modem status messages such as `OVER-VOLTAGE WARNNING` (typical for SIM800/SIM800C). These unsolicited messages interleave with AT responses and can freeze gammu communication, making the modem appear dead.
+
+### Fixed
+
+* **SIM800/SIM800C freezing / SMS not being read** – Combination of the two options above resolves modems that initialize but then time out on every operation (`GetSignalQuality timed out`). Verified at 100 % success over repeated operations on a real SIM800C, vs. hanging indefinitely before.
+
+
+
 ## [1.6.5] – 2026-06-01
 
 ### Added

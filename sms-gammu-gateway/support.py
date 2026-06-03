@@ -12,14 +12,25 @@ import logging
 import gammu
 
 
-def init_state_machine(pin, device_path='/dev/ttyUSB0'):
-    """Initialize gammu state machine with HA add-on config"""
+def init_state_machine(pin, device_path='/dev/ttyUSB0', baud_rate='auto'):
+    """Initialize gammu state machine with HA add-on config.
+
+    baud_rate: 'auto' ponechá gammu auto-detekci rychlosti (connection = at),
+    konkrétní hodnota (např. '115200') rychlost zafixuje (connection = at115200).
+    Auto-detekce zasekává některé moduly (SIM800C) → default je fixní rychlost.
+    """
     sm = gammu.StateMachine()
+
+    # Rychlost: 'auto' -> at (gammu hádá), jinak at<rychlost> (fixní)
+    if baud_rate and str(baud_rate) != 'auto':
+        connection = f"at{baud_rate}"
+    else:
+        connection = "at"
 
     # Create gammu config dynamically
     config_content = f"""[gammu]
 device = {device_path}
-connection = at
+connection = {connection}
 commtimeout = 40
 """
 

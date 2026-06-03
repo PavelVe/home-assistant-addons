@@ -2,6 +2,12 @@ configuration:
   device_path:
     name: Caminho do dispositivo
     description: Caminho para o modem GSM (por exemplo /dev/ttyUSB0)
+  modem_baud_rate:
+    name: Velocidade do modem (baud)
+    description: 'Velocidade serial do modem GSM. Um número como 115200 fixa a velocidade (recomendado, corrige o congelamento de SIM800/SIM800C); "auto" deixa o gammu detectá-la (comportamento antigo). Se o modem não iniciar após a atualização, tente "auto".'
+  urc_filter_enabled:
+    name: Filtro URC (avisos do modem)
+    description: Filtra mensagens de estado espúrias do modem como "OVER-VOLTAGE WARNNING" (típico de SIM800) que podem congelar a comunicação do gammu. Recomenda-se mantê-lo ativado.
   pin:
     name: PIN do SIM
     description: Código PIN do cartão SIM (deixar vazio se nenhum PIN for necessário)
