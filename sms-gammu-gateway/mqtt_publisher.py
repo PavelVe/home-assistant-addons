@@ -1513,6 +1513,15 @@ class MQTTPublisher:
             # Zpracuj všechny nepřečtené SMS
             for sms in all_sms:
                 if sms.get('State') == 'UnRead':
+                    # Přeskoč nekompletní multipart SMS - počkáme, až dorazí
+                    # všechny části (zpracují se v některém z dalších cyklů).
+                    if not sms.get('Complete', True):
+                        logger.info(
+                            f"⏳ Incomplete multipart SMS from {sms.get('Number', 'Unknown')} "
+                            f"({sms.get('PartsReceived')}/{sms.get('PartsExpected')} parts) - waiting for the rest"
+                        )
+                        continue
+
                     sms_copy = sms.copy()
                     sms_copy.pop("Locations", None)
 
@@ -1522,11 +1531,7 @@ class MQTTPublisher:
 
                     # Auto-delete pokud povoleno
                     if auto_delete:
-                        try:
-                            self.track_gammu_operation("deleteSms", deleteSms, self.gammu_machine, sms)
-                            logger.info(f"🗑️ Auto-deleted SMS from {sms.get('Number', 'Unknown')}")
-                        except Exception as e:
-                            logger.error(f"Error auto-deleting SMS: {e}")
+                        self._auto_delete_sms(sms)
 
             if processed_count > 0:
                 logger.info(f"📨 Callback processed {processed_count} new SMS")
@@ -1541,6 +1546,61 @@ class MQTTPublisher:
 
         except Exception as e:
             logger.error(f"Error processing SMS from callback: {e}")
+
+    def _auto_delete_sms(self, sms):
+        """Smaže (auto-delete) přečtenou SMS.
+
+        Pokud je nastaven `sms_delete_delay_seconds` > 0, smazání se naplánuje
+        s odkladem - dá tak automatizacím / uživateli čas zprávu zpracovat a
+        slouží jako pojistka u pomalu přicházejících multipart SMS. Volá se až
+        po ověření, že je zpráva kompletní (Complete=True).
+
+        Vrací True, pokud bylo smazání provedeno nebo naplánováno.
+        """
+        try:
+            delay = int(self.config.get('sms_delete_delay_seconds', 0) or 0)
+        except (TypeError, ValueError):
+            delay = 0
+
+        number = sms.get('Number', 'Unknown')
+
+        if delay > 0:
+            date_str = str(sms.get('Date', ''))
+            threading.Timer(delay, self._delayed_delete_sms, [number, date_str]).start()
+            logger.info(f"🕒 SMS from {number} scheduled for deletion in {delay}s")
+            return True
+
+        from support import deleteSms
+        try:
+            self.track_gammu_operation("deleteSms", deleteSms, self.gammu_machine, sms)
+            logger.info(f"🗑️ Auto-deleted SMS from {number}")
+            return True
+        except Exception as e:
+            logger.error(f"Error auto-deleting SMS: {e}")
+            return False
+
+    def _delayed_delete_sms(self, number, date_str):
+        """Provede odložené smazání SMS po uplynutí `sms_delete_delay_seconds`.
+
+        Místo držení (možná již neplatných) lokací znovu načte zprávy z modemu
+        a smaže jen tu, která stále odpovídá číslu i datu a je kompletní -
+        ochrana proti přečíslování lokací mezi naplánováním a smazáním.
+        """
+        if not self.gammu_machine:
+            return
+        from support import retrieveAllSms, deleteSms
+        try:
+            all_sms = self.track_gammu_operation("retrieveAllSms", retrieveAllSms, self.gammu_machine)
+            for sms in all_sms or []:
+                if (sms.get('Number') == number
+                        and str(sms.get('Date', '')) == date_str
+                        and sms.get('Complete', True)):
+                    self.track_gammu_operation("deleteSms", deleteSms, self.gammu_machine, sms)
+                    logger.info(f"🗑️ Auto-deleted SMS from {number} (after delay)")
+                    return
+            logger.debug(f"Delayed delete: SMS from {number} ({date_str}) no longer present, skipping")
+        except Exception as e:
+            logger.error(f"Error in delayed SMS delete: {e}")
 
     def start_callback_monitoring(self, gammu_machine):
         """
@@ -1888,6 +1948,15 @@ class MQTTPublisher:
                         # Process new SMS (from the end, newest first)
                         for i in range(last_sms_count, current_count):
                             if i < len(all_sms):
+                                # Přeskoč nekompletní multipart SMS - počkáme na
+                                # zbylé části (zpracují se v dalším cyklu).
+                                if not all_sms[i].get('Complete', True):
+                                    logger.info(
+                                        f"⏳ Incomplete multipart SMS from {all_sms[i].get('Number', 'Unknown')} "
+                                        f"({all_sms[i].get('PartsReceived')}/{all_sms[i].get('PartsExpected')} parts) - waiting for the rest"
+                                    )
+                                    continue
+
                                 sms = all_sms[i].copy()
                                 sms.pop("Locations", None)
 
@@ -1896,12 +1965,8 @@ class MQTTPublisher:
 
                                 # Auto-delete if enabled and SMS is read
                                 if auto_delete and sms.get('State') in ['Read', 'UnRead']:
-                                    try:
-                                        self.track_gammu_operation("deleteSms", deleteSms, gammu_machine, all_sms[i])
-                                        logger.info(f"🗑️ Auto-deleted SMS from {sms.get('Number', 'Unknown')}")
+                                    if self._auto_delete_sms(all_sms[i]):
                                         deleted_count += 1
-                                    except Exception as e:
-                                        logger.error(f"Error auto-deleting SMS: {e}")
 
                         self.sms_processed.update()
 

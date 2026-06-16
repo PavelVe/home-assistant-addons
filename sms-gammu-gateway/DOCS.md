@@ -86,6 +86,7 @@ curl -X POST http://192.168.1.x:5000/sms \
 | `sms_cost_per_message` | `0.0` | Price per SMS (0 = cost tracking disabled) |
 | `sms_cost_currency` | `CZK` | Currency code (EUR, USD, CZK, GBP, etc.) |
 | `auto_delete_read_sms` | `false` | Auto-delete SMS after reading (frees SIM space) |
+| `sms_delete_delay_seconds` | `0` | Delay (0–300 s) before auto-deleting a read SMS; `0` = immediate |
 
 ## 📊 MQTT Sensors
 

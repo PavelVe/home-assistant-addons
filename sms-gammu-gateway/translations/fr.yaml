@@ -56,6 +56,9 @@ configuration:
   auto_delete_read_sms:
     name: Supprimer automatiquement les SMS lus
     description: Supprimer automatiquement les SMS de la carte SIM après lecture (libère de l'espace SIM)
+  sms_delete_delay_seconds:
+    name: Délai avant suppression du SMS
+    description: Secondes d'attente avant la suppression automatique d'un SMS lu (0 = supprimer immédiatement). Délai de sécurité pour que les automatisations traitent le message et que les SMS multipart lents arrivent en entier.
   missed_calls_monitoring_enabled:
     name: Activer la surveillance des appels
     description: Détection d'appels en temps réel via callbacks Gammu - détecte les appels entrants et manqués (fonctionne avec SIM800L et la plupart des modems)

@@ -140,6 +140,7 @@ This file replaces the HA add-on configuration UI. Adjust values to your setup:
   "sms_cost_per_message": 0.0,
   "sms_cost_currency": "EUR",
   "auto_delete_read_sms": false,
+  "sms_delete_delay_seconds": 0,
   "missed_calls_monitoring_enabled": true,
   "incoming_call_auto_reset_seconds": 10,
   "voice_call_enabled": false
@@ -243,6 +244,7 @@ ls -la /dev/serial/by-id/
 |--------|---------|-------------|
 | `sms_cost_per_message` | `0.0` | Cost per SMS (set to 0 to disable cost tracking sensor) |
 | `auto_delete_read_sms` | `true` | Automatically delete SMS after reading |
+| `sms_delete_delay_seconds` | `0` | Delay (0–300 s) before auto-deleting a read SMS; `0` = delete immediately |
 | `missed_calls_monitoring_enabled` | `false` | Enable incoming/missed call detection (requires modem support) |
 | `incoming_call_auto_reset_seconds` | `60` | Auto-reset incoming call state after N seconds (10-300) |
 | `voice_call_enabled` | `false` | **Experimental:** Enable voice calls (see limitations below) |

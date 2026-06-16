@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.1] – 2026-06-16
+
+### Fixed
+
+* **Truncated / incomplete multipart SMS** – Long (concatenated) SMS messages that arrived in several parts could be published — and with auto-delete enabled, deleted — before all parts had arrived, so the user saw only the first part and the rest of the message was lost. Incoming SMS are now checked for completeness (using the multipart `AllParts` info); an incomplete message is left on the modem and processed only once every part has arrived. (#46)
+
+### Added
+
+* **`sms_delete_delay_seconds` option** – Optional delay (0–300 s, `0` = delete immediately) before a read SMS is auto-deleted. Acts as a safety buffer so automations can process the message first and slow-arriving multipart SMS have extra time to fully assemble. (#46)
+
 ## [1.7.0] – 2026-06-02
 
 > ⚠️ **Heads-up on the new default:** `modem_baud_rate` now defaults to `115200` instead of auto-detection. This fixes the freezing for most modems out of the box. If your modem does **not** start after this update, set `modem_baud_rate` to `auto` in the addon configuration and restart.

@@ -98,11 +98,27 @@ def retrieveAllSms(machine):
         for sms in allSms:
             smsPart = sms[0]
 
+            # Multipart completeness check: u dlouhých (concatenated) SMS nese
+            # každá část v UDH údaj "AllParts" = kolik částí zpráva celkem má.
+            # Pokud ještě nedorazily všechny části, nesmíme zprávu publikovat ani
+            # mazat - jinak uživatel dostane useknutý text a smazáním první části
+            # znemožníme pozdější složení zbytku.
+            all_parts = 0
+            for part in sms:
+                udh = part.get('UDH') or {}
+                part_total = udh.get('AllParts', 0) or 0
+                if part_total > all_parts:
+                    all_parts = part_total
+            complete = (all_parts <= 1) or (len(sms) >= all_parts)
+
             result = {
                 "Date": str(smsPart['DateTime']),
                 "Number": smsPart['Number'],
                 "State": smsPart['State'],
                 "Locations": [smsPart['Location'] for smsPart in sms],
+                "Complete": complete,
+                "PartsReceived": len(sms),
+                "PartsExpected": all_parts if all_parts > 1 else 1,
             }
 
             # Try to decode SMS - this may fail for MMS notifications or corrupted messages

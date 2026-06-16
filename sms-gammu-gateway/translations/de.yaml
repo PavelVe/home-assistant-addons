@@ -56,6 +56,9 @@ configuration:
   auto_delete_read_sms:
     name: Gelesene SMS automatisch löschen
     description: SMS-Nachrichten nach dem Lesen automatisch von der SIM-Karte löschen (spart SIM-Speicher)
+  sms_delete_delay_seconds:
+    name: Verzögerung vor SMS-Löschung
+    description: Sekunden, die vor dem automatischen Löschen einer gelesenen SMS gewartet wird (0 = sofort löschen). Sicherheitsverzögerung, damit Automationen die Nachricht verarbeiten und langsame Multipart-SMS vollständig ankommen können.
   missed_calls_monitoring_enabled:
     name: Anrufüberwachung aktivieren
     description: Echtzeit-Anruferkennung über Gammu-Callbacks - erkennt eingehende und verpasste Anrufe (funktioniert mit SIM800L und den meisten Modems)
