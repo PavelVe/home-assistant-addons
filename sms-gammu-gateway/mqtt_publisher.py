@@ -1172,11 +1172,20 @@ class MQTTPublisher:
             
         # Add timestamp
         sms_data['timestamp'] = time.strftime('%Y-%m-%d %H:%M:%S')
-        
+
+        # Sanitizace: případné bytes hodnoty (nedekódovatelný text/číslo) by
+        # shodily json.dumps ("Object of type bytes is not JSON serializable").
+        safe_data = {
+            k: (v.decode('utf-8', errors='replace') if isinstance(v, bytes) else v)
+            for k, v in sms_data.items()
+        }
+
+        # retain=True: poslední přijatá SMS přežije restart HA / znovupřipojení,
+        # takže senzor nepřepadne na "unknown" a zpráva zůstane viditelná.
         topic = f"{self.topic_prefix}/sms/state"
-        self.client.publish(topic, json.dumps(sms_data), qos=1)
-        
-        logger.info(f"📡 Published SMS to MQTT: {sms_data.get('Number', 'Unknown')} -> {sms_data.get('Text', '')}")
+        self.client.publish(topic, json.dumps(safe_data), qos=1, retain=True)
+
+        logger.info(f"📡 Published SMS to MQTT: {safe_data.get('Number', 'Unknown')} -> {safe_data.get('Text', '')}")
     
     def publish_device_status(self):
         """Publish USB device connectivity status"""
