@@ -6,7 +6,7 @@
 ![Supports armv7 Architecture][armv7-shield]
 ![Supports i386 Architecture][i386-shield]
 
-REST API SMS Gateway using python-gammu for USB GSM modems (SIM800L, Huawei, etc.)
+REST API SMS Gateway using python-gammu for USB GSM modems. Developed and tested with **SIM800L**; other modems may work but are community-supported.
 
 ## About
 
@@ -53,10 +53,23 @@ This add-on provides a complete SMS gateway solution for Home Assistant, replaci
 
 ## Prerequisites
 
-- USB GSM modem supporting AT commands (SIM800L, Huawei E1750, etc.)
+- USB GSM modem supporting AT commands (see **Supported hardware** below)
 - Modem must appear as `/dev/ttyUSB*` device
 - SIM card with SMS capability
 - Optional: MQTT broker for full integration
+
+## Supported hardware
+
+This add-on is **developed and tested exclusively with SIM800L** modems — that's the hardware the author owns and verifies releases against.
+
+Other modems (Huawei, Quectel EC25, ZTE, etc.) **may work**, and many do, but they are **community-supported**: the author can't test or debug hardware he doesn't own. Modem-specific quirks — init failures (`Code 27`/`Code 14`), `GSM Network: Unknown`, voice calling, multipart timing — depend heavily on the individual modem's firmware and USB interface layout.
+
+What this means in practice:
+- ✅ **SIM800L issues** are first-class and will be investigated.
+- 🤝 **Other modems**: I'm happy to point you in the right direction, and if the community figures out a working recipe I'll gladly link or incorporate it — but bug reports that require modem-specific hardware I can't reproduce may be closed as *not planned*.
+- 💡 If your modem works with raw AT commands (e.g. via `microcom`) but not here, it's usually a startup-timing / unsolicited-message (URC) quirk specific to that modem family.
+
+If reliable operation matters to you, a **SIM800L-based module is the recommended choice**.
 
 ## Installation
 

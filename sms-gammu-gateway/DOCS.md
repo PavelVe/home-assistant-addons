@@ -3,9 +3,11 @@
 ## 🚀 Quick Start
 
 ### Step 1: Connect GSM Modem
-- Connect your USB GSM modem (SIM800L, Huawei, etc.)
+- Connect your USB GSM modem
 - Verify detection: Settings → System → Hardware → Search for "ttyUSB" or "ttyACM"
 - Supported device paths: `/dev/ttyUSB0-3`, `/dev/ttyACM0`, `/dev/ttyS0`
+
+> **Hardware support:** developed and tested with **SIM800L**. Other modems (Huawei, Quectel, etc.) may work but are community-supported — see the README's "Supported hardware" section.
 
 ### Step 2: Basic Configuration
 ```yaml
